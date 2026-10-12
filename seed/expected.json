@@ -1,0 +1,98 @@
+{
+  "m01": {
+    "label": "red",
+    "scam_type": "family_emergency"
+  },
+  "m02": {
+    "label": "red",
+    "scam_type": "parcel_delivery"
+  },
+  "m03": {
+    "label": "red",
+    "scam_type": "bank_phishing"
+  },
+  "m04": {
+    "label": "red",
+    "scam_type": "government_refund"
+  },
+  "m05": {
+    "label": "red",
+    "scam_type": "tech_support"
+  },
+  "m06": {
+    "label": "red",
+    "scam_type": "romance"
+  },
+  "m07": {
+    "label": "red",
+    "scam_type": "investment_crypto"
+  },
+  "m08": {
+    "label": "red",
+    "scam_type": "lottery_prize"
+  },
+  "m09": {
+    "label": "red",
+    "scam_type": "utility_shutoff"
+  },
+  "m10": {
+    "label": "red",
+    "scam_type": "police_impersonation"
+  },
+  "m11": {
+    "label": "red",
+    "scam_type": "family_emergency"
+  },
+  "m12": {
+    "label": "red",
+    "scam_type": "parcel_delivery"
+  },
+  "m13": {
+    "label": "red",
+    "scam_type": "government_refund"
+  },
+  "m14": {
+    "label": "red",
+    "scam_type": "family_emergency"
+  },
+  "m15": {
+    "label": "red",
+    "scam_type": "bank_phishing"
+  },
+  "m16": {
+    "label": "green"
+  },
+  "m17": {
+    "label": "green"
+  },
+  "m18": {
+    "label": "green"
+  },
+  "m19": {
+    "label": "green"
+  },
+  "m20": {
+    "label": "green"
+  },
+  "m21": {
+    "label": "green"
+  },
+  "m22": {
+    "label": "green"
+  },
+  "m23": {
+    "label": "green"
+  },
+  "m24": {
+    "label": "yellow",
+    "scam_type": "marketing"
+  },
+  "m25": {
+    "label": "yellow",
+    "scam_type": "parcel_delivery"
+  },
+  "m26": {
+    "label": "yellow",
+    "scam_type": "charity_solicitation"
+  }
+}

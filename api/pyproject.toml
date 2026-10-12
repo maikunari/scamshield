@@ -1,0 +1,28 @@
+[project]
+name = "scamshield"
+version = "0.1.0"
+description = "ScamShield core API: scam triage, evidence lookup and verdicts for elderly parents"
+license = { text = "MIT" }
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "httpx>=0.27",
+    "pydantic>=2.9",
+]
+
+[project.scripts]
+scamshield = "scamshield.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["scamshield"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

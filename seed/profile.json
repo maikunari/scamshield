@@ -1,0 +1,72 @@
+{
+  "id": "michiko",
+  "name": "Michiko Hayashi",
+  "languages": [
+    "en",
+    "ja"
+  ],
+  "store_green_bodies": false,
+  "trusted_contacts": [
+    {
+      "name": "Kenji Hayashi",
+      "relationship": "son",
+      "phones": [
+        "212-555-0101",
+        "090-0000-0101"
+      ],
+      "emails": [
+        "kenji.hayashi@family.example.com"
+      ]
+    },
+    {
+      "name": "Taro Hayashi",
+      "relationship": "grandson",
+      "phones": [
+        "212-555-0102"
+      ],
+      "emails": []
+    }
+  ],
+  "known_services": [
+    {
+      "name": "Sakura Example Bank",
+      "kind": "bank",
+      "domains": [
+        "sakurabank.example.com"
+      ],
+      "phones": [],
+      "senders": [
+        "no-reply@sakurabank.example.com"
+      ]
+    },
+    {
+      "name": "Maple Pharmacy",
+      "kind": "pharmacy",
+      "domains": [],
+      "phones": [
+        "212-555-0110"
+      ],
+      "senders": []
+    },
+    {
+      "name": "Sakura Clinic",
+      "kind": "clinic",
+      "domains": [],
+      "phones": [
+        "090-0000-0120"
+      ],
+      "senders": []
+    },
+    {
+      "name": "Maple Garden Shop",
+      "kind": "retail",
+      "domains": [
+        "maplegarden.example.com"
+      ],
+      "phones": [],
+      "senders": [
+        "orders@maplegarden.example.com"
+      ]
+    }
+  ]
+}
