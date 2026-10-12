@@ -1,0 +1,123 @@
+[
+  {
+    "match": "parcelpost-redelivery.example.com",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "Parcel redelivery fee texts: parcelpost-redelivery.example.com reported",
+        "url": "https://scam-watch.example.com/reports/parcelpost-redelivery",
+        "content": "Residents report text messages demanding a small redelivery fee and linking to parcelpost-redelivery.example.com. The site harvests card details. Do not pay."
+      }
+    ]
+  },
+  {
+    "match": "sakura-bank-verify.test",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "sakura-bank-verify.test flagged as a bank phishing site",
+        "url": "https://phishing-tracker.example.com/domains/sakura-bank-verify.test",
+        "content": "The domain sakura-bank-verify.test imitates a bank login page and was reported in a wave of 'account locked' phishing emails."
+      }
+    ]
+  },
+  {
+    "match": "irs-refund-claim.test",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "Advisory: fake tax refund messages link to irs-refund-claim.test",
+        "url": "https://consumer-advisories.example.com/tax-refund-text-scam",
+        "content": "Authorities warn about emails promising a tax refund and linking to irs-refund-claim.test. Tax agencies do not ask you to claim refunds through links."
+      }
+    ]
+  },
+  {
+    "match": "cryptoboost-profit.test",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "cryptoboost-profit.test: guaranteed-return crypto scam",
+        "url": "https://phishing-tracker.example.com/domains/cryptoboost-profit.test",
+        "content": "cryptoboost-profit.test promises guaranteed returns on deposits; victims report being unable to withdraw. Investment fraud warning."
+      }
+    ]
+  },
+  {
+    "match": "takuhai-saihaitatsu.test",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "takuhai-saihaitatsu.test 宅配業者をかたるフィッシングサイト",
+        "url": "https://phishing-tracker.example.com/jp/takuhai-saihaitatsu.test",
+        "content": "宅配業者をかたるSMSに記載された takuhai-saihaitatsu.test はフィッシングサイトとして報告されています。詐欺にご注意ください。"
+      }
+    ]
+  },
+  {
+    "match": "8005550166",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "800-555-0166: reported 40+ times, fake tech support",
+        "url": "https://phone-complaints.example.com/numbers/800-555-0166",
+        "content": "The number 1-800-555-0166 was reported more than 40 times as a fake Microsoft support scam. Callers ask for remote access and payment."
+      }
+    ]
+  },
+  {
+    "match": "2125550155",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "212-555-0155 lottery scam complaints",
+        "url": "https://phone-complaints.example.com/numbers/212-555-0155",
+        "content": "Several complaints about 212-555-0155: callers claim you won a lottery and ask for a processing fee. This is a known fraud pattern."
+      }
+    ]
+  },
+  {
+    "match": "2125550133",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "212-555-0133 fake sheriff scam calls",
+        "url": "https://phone-complaints.example.com/numbers/212-555-0133",
+        "content": "212-555-0133 is reported in fake sheriff warrant scam calls demanding payment by gift card. Police warn this is fraud."
+      }
+    ]
+  },
+  {
+    "match": "grandma it's me",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "Police warn of grandparent scam: 'Grandma, it's me'",
+        "url": "https://consumer-advisories.example.com/grandparent-scam-surge",
+        "content": "Scammers pose as a grandchild in trouble, asking for bail or hospital money and urging secrecy. Officials advise hanging up and calling the family member directly. A current scam campaign."
+      }
+    ]
+  },
+  {
+    "match": "county sheriff",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "Sheriff's office warns of warrant and jury duty scam calls",
+        "url": "https://consumer-advisories.example.com/fake-sheriff-warrant-calls",
+        "content": "Callers claiming to be from the county sheriff demand fines for missed jury duty. Real officers never ask for gift cards. Scam warning."
+      }
+    ]
+  },
+  {
+    "match": "母さん、俺だよ",
+    "note": "synthetic recorded result for offline mode",
+    "results": [
+      {
+        "title": "オレオレ詐欺に注意：息子をかたる「母さん、俺だよ」",
+        "url": "https://consumer-advisories.example.com/jp/oreore-sagi",
+        "content": "警察は、息子や孫をかたって金銭を要求するオレオレ詐欺への注意を呼びかけています。電話番号の変更を口実にする手口が増えています。"
+      }
+    ]
+  }
+]
