@@ -144,6 +144,7 @@ class AnalysisResult(BaseModel):
     offline: bool = False
     budget_mode: str = "normal"  # normal | degraded (Nano-only) | exhausted | killed
     cached_from: str | None = None  # id of the earlier analysis this verdict was served from
+    demo: bool = False  # a sample check loaded with the demo family; its trace is illustrative, not a recorded run
 
 
 def label_for(score: int) -> Label:

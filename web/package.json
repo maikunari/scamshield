@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "next": "16.4.0",
+    "qrcode-generator": "2.0.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

@@ -6,6 +6,14 @@ A parent pastes or forwards a suspicious text, email or voicemail transcript and
 
 **Status:** the core pipeline runs end-to-end on the command line and behind a small FastAPI service, with a spend guard and a per-IP rate limit, and the parent `/check` PWA (paste, share, three examples, full-screen verdict with read-aloud) runs against it. Email intake, family alerts, the dashboard and deployment are not built yet.
 
+## Judge in 60 seconds
+
+1. Open the app URL (`/`) and tap **Load demo family**. It resets the demo family: Michiko, her son Kenji and grandson Taro as trusted contacts, and five past checks including a scam that alerted Kenji.
+2. Open `/check/` and tap an example, for instance **“Grandma, I'm in trouble”**. It turns red: "Kenji has been told."
+3. Open `/family/`, tap **Open as the demo family** (the passphrase is `scamshield-demo`). The newest check is yours: see the alert that went out and **How ScamShield decided**, the stored trace with each step's Nemotron model, tokens, latency and cost.
+
+Past checks marked *Sample* ship with the demo family; their model ids are real but their token counts and timings are illustrative. Your own check carries a measured trace.
+
 ## How it works
 
 ```
@@ -100,7 +108,18 @@ A 🔴 result from `/api/check` (or `/parents/{id}/analyze`) alerts the parent's
 
 A channel without credentials does not fail: the alert is stored as it would have been sent (`status: recorded`, with the payload), and `GET /parents/{id}/alerts` shows every alert, its deliveries and whether it was acknowledged. `family.notified` on the `/api/check` response is true only when something really went out. One alert is made per message per parent, and a family contact is capped at `ALERT_MAX_PER_CONTACT_PER_HOUR`.
 
-**Linking a family member's Telegram** (demo flow): `POST /parents/michiko/telegram-link` with `{"contact": "Kenji Hayashi"}` returns `{"url": "https://t.me/<bot>?start=<code>"}`. The family member opens it, taps Start, and the webhook stores their chat id. Codes are single use and valid for 7 days. Until a contact has linked, Telegram is skipped for them and email still goes out. Like the other `/parents/...` routes, these are unauthenticated for now; the family dashboard slice puts the passphrase gate in front of them.
+**Linking a family member's Telegram** (demo flow): `POST /parents/michiko/telegram-link` with `{"contact": "Kenji Hayashi"}` returns `{"url": "https://t.me/<bot>?start=<code>"}`. The family member opens it, taps Start, and the webhook stores their chat id. Codes are single use and valid for 7 days. Until a contact has linked, Telegram is skipped for them and email still goes out. These routes are behind the family passphrase gate (below).
+
+### Family dashboard (`/family/`)
+
+The adult child's page, in the same calm style as the parent app (18px base type, 44px+ targets, works at 390px). Four things:
+
+1. **Recent checks** with verdict colour, the alerts sent per channel and the **I called her** state (also settable from the dashboard).
+2. **How ScamShield decided**: the stored trace of each check as a step list with the Nemotron tier, model id, tokens, latency bar and cost per step, plus totals, the signals Nano found, the memory match and the Tavily reports. Replayed (cached) verdicts show the original run.
+3. **Memory editing**: trusted contacts and known services, validated server-side (`PUT /parents/{id}/profile`); the next check uses them.
+4. **Alerts**: who is alerted and on which channel, and **Link Telegram** (the `t.me` link plus a QR code; the page notices when the chat is linked). Alert emails and Telegram messages link to `/family/?check=<id>`.
+
+**The gate.** One passphrase per family, no accounts. `POST /api/family/login {"passphrase": ...}` sets an HttpOnly session cookie and returns a bearer token (`Authorization: Bearer <token>`). Every `/parents/{id}/...` route and `/results/{id}` needs a session for that family; `/api/check`, the parent `/check` page, the email "I called her" link and the Telegram webhook (its own secret) stay public. Sessions are signed (`SESSION_SECRET`, else a secret kept in the database), last 7 days, and die when the passphrase changes. Login and demo-load attempts are limited per IP (`LOGIN_ATTEMPTS_PER_MINUTE`). The demo parent's passphrase is `FAMILY_PASSPHRASE` and defaults to the public demo one, `scamshield-demo`: **set it for a deployment that holds a real family**, and set `DEMO_LOAD_ENABLED=0` since `POST /api/demo/load` resets the demo parent's profile and history. Another family's passphrase: `scamshield set-passphrase <parent-id> <passphrase>`.
 
 ### Environment variables
 
@@ -126,6 +145,11 @@ A channel without credentials does not fail: the alert is stored as it would hav
 | `TELEGRAM_WEBHOOK_SECRET` | Secret the webhook must present (`X-Telegram-Bot-Api-Secret-Token`). Required for the webhook to accept anything. |
 | `RESEND_API_KEY` / `ALERT_EMAIL_FROM` | Family alerts by email through Resend; `ALERT_EMAIL_FROM` is a sender Resend has verified (`Name <alerts@your-domain>`). Either missing: email alerts are recorded, not sent. |
 | `PUBLIC_BASE_URL` | Public origin of this app (`https://...`, no trailing slash). Used for the "see the check" and email "I called her" links and for `setWebhook`; without it those links are left out. |
+| `FAMILY_PASSPHRASE` | Passphrase for the family dashboard (default `scamshield-demo`, public: change it for real data). |
+| `SESSION_SECRET` | Signs dashboard sessions. Unset: generated once and kept in the database. |
+| `DEMO_LOAD_ENABLED` | `0` switches off `POST /api/demo/load` ("Load demo family"). Default on. |
+| `LOGIN_ATTEMPTS_PER_MINUTE` | Per-IP limit on login and demo-load attempts (default 10). |
+| `TELEGRAM_BOT_USERNAME` | Optional: bot name for the `t.me` link, skipping the `getMe` call. |
 | `ALERT_MAX_PER_CONTACT_PER_HOUR` | Alerts one family contact can receive per hour (default 5, 0 disables); the rest are recorded as `rate_limited`. |
 | `RETENTION_DAYS` | Auto-delete checks, alerts and cached verdicts older than this many days (default 0 = keep until deleted). |
 
@@ -188,7 +212,7 @@ Controls:
 
 ```
 api/        Python 3.12 FastAPI core API (uv, pytest, Dockerfile)
-web/        Next.js 16 static export: the parent /check PWA (app/, components/, lib/, public/manifest + sw.js)
+web/        Next.js 16 static export: the landing page, the parent /check PWA and the /family dashboard (app/, components/, lib/, public/manifest + sw.js)
 scripts/    discover_models.py, eval.py, smoke.py, dev.sh
 seed/       messages.jsonl, expected.json, profile.json, search_fixtures.json
 docs/       models.md, feedback.md

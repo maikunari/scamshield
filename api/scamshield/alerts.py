@@ -78,7 +78,7 @@ def build_content(
     flags = v.red_flags[:MAX_FLAGS]
     script = v.family_script.strip() or DEFAULT_SCRIPT
     sender = result.message.sender or "an unknown sender"
-    check_url = f"{base_url}/results/{quote(result.id)}" if base_url else None
+    check_url = f"{base_url}/family/?check={quote(result.id)}" if base_url else None
     ack_url = f"{base_url}/api/alerts/{quote(alert_id)}/ack?t={quote(token)}" if base_url else None
     subject = f"ScamShield: {first} got a message that looks like a scam"
 
@@ -253,6 +253,8 @@ class AlertService:
     def bot_username(self) -> str | None:
         if self.telegram is None:
             return None
+        if self.settings.telegram_bot_username:
+            return self.settings.telegram_bot_username
         if self._bot_username is None:
             try:
                 self._bot_username = self.telegram.bot_username()

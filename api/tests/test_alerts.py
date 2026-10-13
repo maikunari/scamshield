@@ -8,6 +8,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import sign_in
 from scamshield import main
 from scamshield.alerts import AlertService, build_content
 from scamshield.config import Settings
@@ -112,10 +113,10 @@ def test_red_alert_goes_to_telegram_and_email(providers):
     msg = sent[0]
     assert msg["parse_mode"] == "HTML"
     assert "Michiko" in msg["text"] and "Suggested words for the call" in msg["text"]
-    assert f"{BASE}/results/{result.id}" in msg["text"]
+    assert f"{BASE}/family/?check={result.id}" in msg["text"]
     buttons = msg["reply_markup"]["inline_keyboard"]
     assert buttons[0][0] == {"text": "I called her", "callback_data": f"ack:{outcome.alert_id}"}
-    assert buttons[1][0]["url"] == f"{BASE}/results/{result.id}"
+    assert buttons[1][0]["url"] == f"{BASE}/family/?check={result.id}"
     # Resend: one call, bearer auth, to Kenji's address, HTML and plain text with the ack link.
     [email] = providers.emails
     assert email.headers["authorization"] == f"Bearer {RESEND_KEY}"
@@ -346,6 +347,7 @@ def api(monkeypatch, tmp_path, providers):
     service = AlertService(pipeline.settings, pipeline.store, providers.client())
     monkeypatch.setattr(main, "get_alerts", lambda: service)
     with TestClient(main.app) as c:
+        sign_in(c)
         yield c, service, providers
     reset_caches()
 
@@ -400,6 +402,7 @@ def test_webhook_is_off_without_a_bot_token(monkeypatch, tmp_path):
         monkeypatch.delenv(k, raising=False)
     reset_caches()
     with TestClient(main.app) as c:
+        sign_in(c)
         assert hook(c, {"message": {}}).status_code == 404
         # Offline, a red check still works: the alert is recorded and the parent is not told it was delivered.
         r = c.post("/api/check", json={"sender": "212-555-0142", "body": SCAM})

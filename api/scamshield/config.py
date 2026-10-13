@@ -39,6 +39,10 @@ DEFAULT_PRICES = {tier: MODEL_PRICES[DEFAULT_MODELS[tier].lower()] for tier in T
 DEFAULT_TAVILY_COST = 0.008  # USD per Tavily credit (pay-as-you-go list price, TAVILY_COST_PER_CALL)
 TAVILY_EXTRACT_CREDITS_PER_URL = 0.2  # extract bills 1 credit per 5 successful URLs
 
+# The passphrase the demo family opens with unless FAMILY_PASSPHRASE says otherwise. It is public on purpose: the
+# README hands it to the hackathon judges. Set FAMILY_PASSPHRASE for a deployment that holds a real family.
+DEFAULT_FAMILY_PASSPHRASE = "scamshield-demo"
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -93,12 +97,19 @@ class Settings:
     # Family alerts (alerts.py). A channel without its credentials records the alert instead of sending it.
     telegram_bot_token: str | None = None
     telegram_webhook_secret: str | None = None
+    telegram_bot_username: str | None = None  # skips the getMe call when the t.me link is built
     resend_api_key: str | None = None
     alert_email_from: str | None = None
     public_base_url: str | None = None  # origin the family reaches this app on; links and the webhook use it
     alert_max_per_contact: int = 5  # alerts one family contact receives per window (0 disables the limit)
     alert_window_seconds: int = 3600
     retention_days: int = 0  # auto-delete checks, alerts and cached verdicts older than this many days; 0 = keep
+    # Family dashboard gate (family.py): one passphrase per family, a signed session cookie / bearer after it.
+    family_passphrase: str = DEFAULT_FAMILY_PASSPHRASE  # the demo parent's passphrase
+    session_secret: str | None = None  # signs sessions; generated once and kept in the database when unset
+    session_ttl_seconds: int = 7 * 24 * 3600
+    login_attempts_per_minute: int = 10  # per client IP; also bounds POST /api/demo/load
+    demo_load_enabled: bool = True  # POST /api/demo/load resets the demo family; switch off for a real family
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -135,12 +146,21 @@ class Settings:
             web_dir=Path(e.get("SCAMSHIELD_WEB_DIR") or REPO_ROOT / "web" / "out"),
             telegram_bot_token=e.get("TELEGRAM_BOT_TOKEN") or None,
             telegram_webhook_secret=e.get("TELEGRAM_WEBHOOK_SECRET") or None,
+            telegram_bot_username=(e.get("TELEGRAM_BOT_USERNAME") or "").strip().lstrip("@") or None,
             resend_api_key=e.get("RESEND_API_KEY") or None,
             alert_email_from=e.get("ALERT_EMAIL_FROM") or None,
             public_base_url=(e.get("PUBLIC_BASE_URL") or "").strip().rstrip("/") or None,
             alert_max_per_contact=int(e.get("ALERT_MAX_PER_CONTACT_PER_HOUR") or defaults.alert_max_per_contact),
             retention_days=max(0, int(e.get("RETENTION_DAYS") or 0)),
+            family_passphrase=e.get("FAMILY_PASSPHRASE") or DEFAULT_FAMILY_PASSPHRASE,
+            session_secret=e.get("SESSION_SECRET") or None,
+            login_attempts_per_minute=int(e.get("LOGIN_ATTEMPTS_PER_MINUTE") or defaults.login_attempts_per_minute),
+            demo_load_enabled=(e.get("DEMO_LOAD_ENABLED") or "").strip().lower() not in {"0", "false", "no", "off"},
         )
+
+    @property
+    def demo_passphrase_is_public(self) -> bool:
+        return self.family_passphrase == DEFAULT_FAMILY_PASSPHRASE
 
     @property
     def llm_offline(self) -> bool:

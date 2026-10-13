@@ -50,6 +50,13 @@ CREATE INDEX IF NOT EXISTS alert_deliveries_contact ON alert_deliveries(contact,
 CREATE TABLE IF NOT EXISTS telegram_links (
     code TEXT PRIMARY KEY, parent_id TEXT NOT NULL, contact TEXT NOT NULL, created_at TEXT NOT NULL, chat_id TEXT
 );
+CREATE TABLE IF NOT EXISTS family_auth (
+    parent_id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kv (
+    key TEXT PRIMARY KEY, value TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS analyses_parent ON analyses(parent_id, created_at);
 """
 
 
@@ -212,6 +219,15 @@ class MemoryStore:
             row = self._db.execute("SELECT result_json FROM analyses WHERE id=?", (analysis_id,)).fetchone()
         return AnalysisResult.model_validate_json(row["result_json"]) if row else None
 
+    def recent_analyses(self, parent_id: str, limit: int = 30) -> list[tuple[str, AnalysisResult]]:
+        """Newest first, as ``(body_hash, result)``. The hash joins a check to its alert."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT body_hash, result_json FROM analyses WHERE parent_id=? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                (parent_id, limit),
+            ).fetchall()
+        return [(r["body_hash"], AnalysisResult.model_validate_json(r["result_json"])) for r in rows]
+
     # --- search cache ---------------------------------------------------------------------------
     def cache_get(self, key: str, ttl_seconds: int) -> list[dict] | None:
         with self._lock:
@@ -356,13 +372,15 @@ class MemoryStore:
         return counts
 
     # --- family alerts --------------------------------------------------------------------------
-    def alert_create(self, alert_id: str, parent_id: str, analysis_id: str, body_hash: str, token: str) -> tuple[str, bool]:
+    def alert_create(
+        self, alert_id: str, parent_id: str, analysis_id: str, body_hash: str, token: str, *, at: str | None = None
+    ) -> tuple[str, bool]:
         """Insert the alert row. Returns (id, created): a parent gets one alert per message, so a repeat returns
-        the earlier alert's id with created=False."""
+        the earlier alert's id with created=False. ``at`` backdates the row (the demo family's history)."""
         with self._lock, self._db:
             cur = self._db.execute(
                 "INSERT OR IGNORE INTO alerts(id, parent_id, analysis_id, body_hash, created_at, token) VALUES(?,?,?,?,?,?)",
-                (alert_id, parent_id, analysis_id, body_hash, _now().isoformat(), token),
+                (alert_id, parent_id, analysis_id, body_hash, at or _now().isoformat(), token),
             )
             if cur.rowcount == 1:
                 return alert_id, True
@@ -398,13 +416,13 @@ class MemoryStore:
 
     def alert_delivery_add(
         self, alert_id: str, contact: str, channel: str, status: str, *, target: str = "", detail: str = "",
-        payload: dict | None = None,
+        payload: dict | None = None, at: str | None = None,
     ) -> None:
         with self._lock, self._db:
             self._db.execute(
                 "INSERT INTO alert_deliveries(alert_id, contact, channel, status, target, detail, payload_json, at) "
                 "VALUES(?,?,?,?,?,?,?,?)",
-                (alert_id, contact, channel, status, target, detail, json.dumps(payload or {}), _now().isoformat()),
+                (alert_id, contact, channel, status, target, detail, json.dumps(payload or {}), at or _now().isoformat()),
             )
 
     def alerts_to_contact_since(self, contact: str, since: datetime) -> int:
@@ -418,14 +436,54 @@ class MemoryStore:
             ).fetchone()
         return int(row[0])
 
-    def alert_ack(self, alert_id: str, by: str, via: str) -> bool:
+    def alert_ack(self, alert_id: str, by: str, via: str, *, at: str | None = None) -> bool:
         """Mark acknowledged. True when this call did it, False when it was already acknowledged."""
         with self._lock, self._db:
             cur = self._db.execute(
                 "UPDATE alerts SET acked_at=?, acked_by=?, acked_via=? WHERE id=? AND acked_at IS NULL",
-                (_now().isoformat(), by, via, alert_id),
+                (at or _now().isoformat(), by, via, alert_id),
             )
             return cur.rowcount == 1
+
+    def alert_ids_by_body(self, parent_id: str) -> dict[str, str]:
+        """``body_hash -> alert id`` for a parent: a repeated message shares the alert of its first appearance."""
+        with self._lock:
+            rows = self._db.execute("SELECT body_hash, id FROM alerts WHERE parent_id=?", (parent_id,)).fetchall()
+        return {r["body_hash"]: r["id"] for r in rows}
+
+    # --- family gate and demo ---------------------------------------------------------------------
+    def auth_get(self, parent_id: str) -> tuple[str, str] | None:
+        with self._lock:
+            row = self._db.execute("SELECT salt, hash FROM family_auth WHERE parent_id=?", (parent_id,)).fetchone()
+        return (row["salt"], row["hash"]) if row else None
+
+    def auth_set(self, parent_id: str, salt: str, digest: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO family_auth(parent_id, salt, hash) VALUES(?,?,?) "
+                "ON CONFLICT(parent_id) DO UPDATE SET salt=excluded.salt, hash=excluded.hash",
+                (parent_id, salt, digest),
+            )
+
+    def kv_get_or_set(self, key: str, make_value) -> str:
+        """The stored value for ``key``, creating it with ``make_value()`` on first use."""
+        with self._lock, self._db:
+            row = self._db.execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
+            if row:
+                return row["value"]
+            value = make_value()
+            self._db.execute("INSERT INTO kv(key, value) VALUES(?,?)", (key, value))
+            return value
+
+    def clear_family_activity(self, parent_id: str) -> None:
+        """Drop a parent's checks, alerts, deliveries and Telegram links (not the profile, caches or spend ledger)."""
+        with self._lock, self._db:
+            ids = [r[0] for r in self._db.execute("SELECT id FROM alerts WHERE parent_id=?", (parent_id,))]
+            for alert_id in ids:
+                self._db.execute("DELETE FROM alert_deliveries WHERE alert_id=?", (alert_id,))
+            self._db.execute("DELETE FROM alerts WHERE parent_id=?", (parent_id,))
+            self._db.execute("DELETE FROM analyses WHERE parent_id=?", (parent_id,))
+            self._db.execute("DELETE FROM telegram_links WHERE parent_id=?", (parent_id,))
 
     # --- telegram linking -----------------------------------------------------------------------
     def telegram_link_create(self, code: str, parent_id: str, contact: str) -> None:

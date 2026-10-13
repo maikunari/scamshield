@@ -69,9 +69,18 @@ def main(argv: list[str] | None = None) -> int:
     an.add_argument("--json", action="store_true", help="print the full AnalysisResult as JSON")
     wm = sub.add_parser("warm", help="analyze every seed message and pin the verdicts so they are free to replay")
     wm.add_argument("--db", help="database to warm (default: SCAMSHIELD_DB)")
+    sp = sub.add_parser("set-passphrase", help="set a family's dashboard passphrase (signs its sessions out)")
+    sp.add_argument("parent_id")
+    sp.add_argument("passphrase")
     args = ap.parse_args(argv)
 
     settings = Settings.from_env()
+    if args.cmd == "set-passphrase":
+        from .family import FamilyAuth
+
+        FamilyAuth(settings, MemoryStore(settings.db_path)).set_passphrase(args.parent_id, args.passphrase)
+        print(f"passphrase set for {args.parent_id} in {settings.db_path}")
+        return 0
     if args.cmd == "warm":
         return warm(settings, args.db or settings.db_path)
     store = MemoryStore(":memory:")  # CLI runs are throwaway; the API uses SCAMSHIELD_DB

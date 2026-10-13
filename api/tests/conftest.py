@@ -33,3 +33,15 @@ def search(settings):
 @pytest.fixture
 def pipeline(settings, store, search):
     return Pipeline(settings, FakeLLMClient(), search, store)
+
+
+def sign_in(client, parent_id: str = "michiko", passphrase: str = "test-passphrase") -> str:
+    """Give ``parent_id`` a family passphrase and sign the TestClient in (session cookie + bearer header)."""
+    from scamshield import main
+
+    main.get_auth().set_passphrase(parent_id, passphrase)
+    r = client.post("/api/family/login", json={"parent_id": parent_id, "passphrase": passphrase})
+    assert r.status_code == 200, r.text
+    token = r.json()["token"]
+    client.headers["Authorization"] = f"Bearer {token}"
+    return token

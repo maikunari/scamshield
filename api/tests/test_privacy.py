@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import sign_in
 from scamshield import main
 from scamshield.models import RawMessage
 from scamshield.privacy import Retention, export_parent
@@ -20,6 +21,7 @@ def client(monkeypatch, tmp_path):
     monkeypatch.setenv("SCAMSHIELD_DB", str(tmp_path / "test.db"))
     _reset()
     with TestClient(main.app) as c:
+        sign_in(c)
         yield c
     _reset()
 
@@ -159,3 +161,13 @@ def test_redaction_still_runs_before_the_model_through_the_api(client):
     pipeline.llm.complete_json = spy
     _check(client, f"Urgent: confirm your card {card} now or lose your account", sender="x@y.test")
     assert seen and not any(card in s for s in seen)
+
+
+def test_family_privacy_routes_need_the_passphrase_but_the_parents_do_not(client):
+    _check(client)
+    signed_out = TestClient(main.app)
+    assert signed_out.get("/parents/michiko/export").status_code == 401
+    assert signed_out.delete("/parents/michiko/data?confirm=yes").status_code == 401
+    assert signed_out.delete("/parents/michiko/checks/x").status_code == 401
+    assert signed_out.get("/api/my-data/export").status_code == 200  # the parent app's own routes stay public
+    assert len(client.get("/api/my-data/export").json()["checks"]) == 1

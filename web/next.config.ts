@@ -11,7 +11,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Rewrites only apply to the dev server; the export ignores them.
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API_ORIGIN}/api/:path*` }];
+    return [
+      { source: "/api/:path*", destination: `${API_ORIGIN}/api/:path*` },
+      // The family dashboard also reads these (gated by the session cookie, same origin in production).
+      { source: "/parents/:path*", destination: `${API_ORIGIN}/parents/:path*` },
+      { source: "/results/:path*", destination: `${API_ORIGIN}/results/:path*` },
+    ];
   },
 };
 
