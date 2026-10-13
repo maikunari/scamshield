@@ -127,6 +127,7 @@ A channel without credentials does not fail: the alert is stored as it would hav
 | `RESEND_API_KEY` / `ALERT_EMAIL_FROM` | Family alerts by email through Resend; `ALERT_EMAIL_FROM` is a sender Resend has verified (`Name <alerts@your-domain>`). Either missing: email alerts are recorded, not sent. |
 | `PUBLIC_BASE_URL` | Public origin of this app (`https://...`, no trailing slash). Used for the "see the check" and email "I called her" links and for `setWebhook`; without it those links are left out. |
 | `ALERT_MAX_PER_CONTACT_PER_HOUR` | Alerts one family contact can receive per hour (default 5, 0 disables); the rest are recorded as `rate_limited`. |
+| `RETENTION_DAYS` | Auto-delete checks, alerts and cached verdicts older than this many days (default 0 = keep until deleted). |
 
 ### Discover models and smoke-test the real services
 
@@ -166,9 +167,22 @@ Offline fakes (the model-backed numbers will replace these once keys are availab
 
 ## Privacy
 
-- Message text is PII-redacted before any model call; Tavily queries contain only phone numbers, domains and a short redacted phrase from the message.
-- Model calls go only to the configured Token Factory base URL and searches only to `api.tavily.com`. Nothing else is contacted, and suspicious links are never opened.
-- Data stays in your own SQLite database. The verdict cache stores the same thing as the analyses table: a 🟢 body is dropped unless the family opted in.
+What is stored, per parent, in your own SQLite database: the messages checked and their sender, the verdict and its trace, family alerts and their deliveries, the profile (trusted contacts, known services) and linked Telegram chats. A 🟢 message body is dropped unless the family opted in (`store_green_bodies`); the verdict cache follows the same rule. The spend ledger holds no personal data.
+
+Who sees what:
+
+- **Nebius Token Factory** (the Nemotron models) sees the message text after PII redaction. Card numbers (Luhn-checked), SSNs, Japanese My Numbers and anything that looks like a password or PIN are replaced before any model call; the stored message keeps the original.
+- **Tavily** sees only a phone number, a domain, or a short redacted phrase from the message, never the whole message. Suspicious links are never opened.
+- **Family contacts** get the alert (sender, why it looks like a scam, a call script) over Telegram or Resend, if configured.
+- Nothing else is contacted.
+
+Controls:
+
+- `GET /parents/{id}/export` returns everything stored for the parent as JSON (profile, checks with traces, alerts without ack tokens, Telegram link status).
+- `DELETE /parents/{id}/data?confirm=yes` deletes it all: checks, traces, verdict-cache copies, alerts, deliveries, Telegram links, the profile (memory) and the search cache. The spend ledger is kept so the budget caps still hold. `DELETE /parents/{id}/checks/{check_id}` deletes one check with its alert and cached copy.
+- The parent app exposes the same for the demo parent: `GET /api/my-data/export`, `DELETE /api/my-data?confirm=yes`, `DELETE /api/check/{id}`. The PWA has a plain "Delete my data" page (`/delete/`, with a confirm step and a download-a-copy link) and a privacy explainer (`/privacy/`).
+- `RETENTION_DAYS=N` (default `0`, off) deletes checks, alerts and cached verdicts older than N days, at startup and then at most hourly. Profiles and the spend ledger are kept.
+- These endpoints are unauthenticated, like the other `/parents/{id}` routes: the family dashboard's passphrase gate is the intended protection for a public deployment. A restart reloads the fictional seed profile for the demo parent.
 
 ## Layout
 

@@ -566,6 +566,91 @@ a {
   }
 }
 
+/* ---------- privacy + delete ---------- */
+
+a.btn {
+  text-decoration: none;
+}
+
+.btn-center {
+  justify-content: center;
+}
+
+.btn-danger {
+  background: var(--red);
+  color: #fff;
+  min-height: 92px;
+  font-size: 1.65rem;
+}
+
+.btn-danger:hover {
+  background: var(--red-deep);
+}
+
+.btn-danger:disabled {
+  background: #8a6a6a;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.plain-warning {
+  color: var(--red-deep);
+  font-weight: 800;
+}
+
+.privacy-note {
+  color: var(--ink-soft);
+  font-size: 1.15rem;
+}
+
+.privacy-note a,
+.footer-links a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  font-weight: 700;
+  color: var(--navy-deep);
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  font-size: 1.15rem;
+}
+
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+}
+
+.prose section + section {
+  margin-top: 4px;
+}
+
+.prose h2 {
+  font-size: 1.6rem;
+  line-height: 1.2;
+  color: var(--navy-deep);
+  margin-bottom: 10px;
+}
+
+.prose ul {
+  margin: 0 0 12px;
+  padding-left: 1.3em;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prose p + p {
+  margin-top: 10px;
+}
+
 /* ---------- motion & contrast preferences ---------- */
 
 @media (prefers-reduced-motion: reduce) {

@@ -12,6 +12,8 @@ Routes:
   ``POST /api/telegram/webhook`` takes the bot's updates (``/start <code>`` links a chat, "I called her" acknowledges),
   ``POST /parents/{id}/telegram-link`` makes the link a family member opens, ``GET /api/alerts/{id}/ack`` is the
   email's "I called her" link and ``GET /parents/{id}/alerts`` lists alerts, their deliveries and acknowledgements.
+* Privacy (privacy.py): ``GET /parents/{id}/export``, ``DELETE /parents/{id}/data?confirm=yes`` and
+  ``DELETE /parents/{id}/checks/{check_id}``, plus the parent app's ``/api/my-data[/export]`` and ``/api/check/{id}``.
 
 Both analyze routes share the per-IP rate limit.
 """
@@ -34,6 +36,7 @@ from .config import Settings
 from .memory import Profile
 from .models import AnalysisResult, Channel, ContactMatch, Label, RawMessage, RedFlag
 from .pipeline import Pipeline
+from .privacy import Retention, export_parent
 from .ratelimit import RateLimiter, client_ip
 from .runtime import build_pipeline, load_profile
 
@@ -45,6 +48,7 @@ MAX_CHECK_CHARS = 8000
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Register the Telegram webhook when a token, a webhook secret and an https PUBLIC_BASE_URL are all set."""
     get_alerts().register_webhook()
+    get_retention().sweep()
     yield
 
 
@@ -64,6 +68,12 @@ def get_pipeline() -> Pipeline:
 def get_alerts() -> AlertService:
     pipeline = get_pipeline()
     return AlertService(pipeline.settings, pipeline.store)
+
+
+@lru_cache
+def get_retention() -> Retention:
+    pipeline = get_pipeline()
+    return Retention(pipeline.settings, pipeline.store)
 
 
 @lru_cache
@@ -93,6 +103,7 @@ def enforce_rate_limit(request: Request, pipeline: Pipeline) -> None:
     wait = get_limiter().check(ip)
     if wait:
         raise HTTPException(429, "Too many requests, please wait a moment.", headers={"Retry-After": str(int(wait) + 1)})
+    get_retention().maybe_sweep()
 
 
 # --- parent /check -----------------------------------------------------------------------------------
@@ -167,6 +178,59 @@ def check(req: CheckRequest, request: Request) -> CheckResponse:
     result = pipeline.analyze(raw, parent_id)
     profile = pipeline.store.get_profile(parent_id)
     return to_check_response(result, profile, get_alerts().dispatch(result, profile))
+
+
+# --- privacy: export and delete -----------------------------------------------------------------------
+# The parent app calls the /api/my-data routes (always the demo parent, like /api/check); the family side
+# calls the /parents/{id}/... ones. Deleting needs ``confirm=yes`` so a stray request cannot wipe a parent.
+
+
+def require_confirm(confirm: str) -> None:
+    if confirm != "yes":
+        raise HTTPException(400, "Add confirm=yes to delete. This cannot be undone.")
+
+
+def delete_all(parent_id: str) -> dict:
+    deleted = get_pipeline().store.delete_parent_data(parent_id)
+    return {"deleted": True, "parent_id": parent_id, "removed": deleted}
+
+
+def delete_check(parent_id: str, check_id: str) -> dict:
+    if not get_pipeline().store.delete_analysis(parent_id, check_id):
+        raise HTTPException(404, "no such check")
+    return {"deleted": True, "id": check_id}
+
+
+@app.get("/parents/{parent_id}/export")
+def export_data(parent_id: str) -> dict:
+    return export_parent(get_pipeline().store, parent_id)
+
+
+@app.delete("/parents/{parent_id}/data")
+def delete_parent_data(parent_id: str, confirm: str = "") -> dict:
+    require_confirm(confirm)
+    return delete_all(parent_id)
+
+
+@app.delete("/parents/{parent_id}/checks/{check_id}")
+def delete_parent_check(parent_id: str, check_id: str) -> dict:
+    return delete_check(parent_id, check_id)
+
+
+@app.get("/api/my-data/export")
+def my_data_export() -> dict:
+    return export_parent(get_pipeline().store, get_pipeline().settings.demo_parent_id)
+
+
+@app.delete("/api/my-data")
+def my_data_delete(confirm: str = "") -> dict:
+    require_confirm(confirm)
+    return delete_all(get_pipeline().settings.demo_parent_id)
+
+
+@app.delete("/api/check/{check_id}")
+def my_check_delete(check_id: str) -> dict:
+    return delete_check(get_pipeline().settings.demo_parent_id, check_id)
 
 
 # --- health, budget + full pipeline ------------------------------------------------------------------

@@ -98,6 +98,7 @@ class Settings:
     public_base_url: str | None = None  # origin the family reaches this app on; links and the webhook use it
     alert_max_per_contact: int = 5  # alerts one family contact receives per window (0 disables the limit)
     alert_window_seconds: int = 3600
+    retention_days: int = 0  # auto-delete checks, alerts and cached verdicts older than this many days; 0 = keep
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -138,6 +139,7 @@ class Settings:
             alert_email_from=e.get("ALERT_EMAIL_FROM") or None,
             public_base_url=(e.get("PUBLIC_BASE_URL") or "").strip().rstrip("/") or None,
             alert_max_per_contact=int(e.get("ALERT_MAX_PER_CONTACT_PER_HOUR") or defaults.alert_max_per_contact),
+            retention_days=max(0, int(e.get("RETENTION_DAYS") or 0)),
         )
 
     @property
