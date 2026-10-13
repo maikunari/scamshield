@@ -307,18 +307,18 @@ def delete_check(parent_id: str, check_id: str) -> dict:
     return {"deleted": True, "id": check_id}
 
 
-@app.get("/parents/{parent_id}/export")
+@app.get("/parents/{parent_id}/export", dependencies=[Depends(require_family)])
 def export_data(parent_id: str) -> dict:
     return export_parent(get_pipeline().store, parent_id)
 
 
-@app.delete("/parents/{parent_id}/data")
+@app.delete("/parents/{parent_id}/data", dependencies=[Depends(require_family)])
 def delete_parent_data(parent_id: str, confirm: str = "") -> dict:
     require_confirm(confirm)
     return delete_all(parent_id)
 
 
-@app.delete("/parents/{parent_id}/checks/{check_id}")
+@app.delete("/parents/{parent_id}/checks/{check_id}", dependencies=[Depends(require_family)])
 def delete_parent_check(parent_id: str, check_id: str) -> dict:
     return delete_check(parent_id, check_id)
 
