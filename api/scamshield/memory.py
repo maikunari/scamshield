@@ -35,6 +35,21 @@ CREATE TABLE IF NOT EXISTS spend (
     kind TEXT NOT NULL, tier TEXT NOT NULL, usd REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS spend_day ON spend(day);
+CREATE TABLE IF NOT EXISTS alerts (
+    id TEXT PRIMARY KEY, parent_id TEXT NOT NULL, analysis_id TEXT NOT NULL, body_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL, token TEXT NOT NULL,
+    acked_at TEXT, acked_by TEXT, acked_via TEXT,
+    UNIQUE(parent_id, body_hash)
+);
+CREATE TABLE IF NOT EXISTS alert_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, alert_id TEXT NOT NULL, contact TEXT NOT NULL, channel TEXT NOT NULL,
+    status TEXT NOT NULL, target TEXT NOT NULL DEFAULT '', detail TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}', at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS alert_deliveries_contact ON alert_deliveries(contact, at);
+CREATE TABLE IF NOT EXISTS telegram_links (
+    code TEXT PRIMARY KEY, parent_id TEXT NOT NULL, contact TEXT NOT NULL, created_at TEXT NOT NULL, chat_id TEXT
+);
 """
 
 
@@ -256,3 +271,114 @@ class MemoryStore:
                 "SELECT COUNT(*), COALESCE(SUM(usd), 0) FROM spend WHERE day=? AND tier=?", (day, tier)
             ).fetchone()
         return int(row[0]), float(row[1])
+
+    # --- family alerts --------------------------------------------------------------------------
+    def alert_create(self, alert_id: str, parent_id: str, analysis_id: str, body_hash: str, token: str) -> tuple[str, bool]:
+        """Insert the alert row. Returns (id, created): a parent gets one alert per message, so a repeat returns
+        the earlier alert's id with created=False."""
+        with self._lock, self._db:
+            cur = self._db.execute(
+                "INSERT OR IGNORE INTO alerts(id, parent_id, analysis_id, body_hash, created_at, token) VALUES(?,?,?,?,?,?)",
+                (alert_id, parent_id, analysis_id, body_hash, _now().isoformat(), token),
+            )
+            if cur.rowcount == 1:
+                return alert_id, True
+            row = self._db.execute(
+                "SELECT id FROM alerts WHERE parent_id=? AND body_hash=?", (parent_id, body_hash)
+            ).fetchone()
+            return row["id"], False
+
+    def alert_get(self, alert_id: str) -> dict | None:
+        """The alert with its deliveries. Includes ``token``: strip it before it leaves the API."""
+        with self._lock:
+            row = self._db.execute("SELECT * FROM alerts WHERE id=?", (alert_id,)).fetchone()
+            if not row:
+                return None
+            deliveries = self._db.execute(
+                "SELECT contact, channel, status, target, detail, payload_json, at FROM alert_deliveries "
+                "WHERE alert_id=? ORDER BY id",
+                (alert_id,),
+            ).fetchall()
+        out = {k: row[k] for k in row.keys()}
+        out["deliveries"] = [
+            {**{k: d[k] for k in ("contact", "channel", "status", "target", "detail", "at")}, "payload": json.loads(d["payload_json"])}
+            for d in deliveries
+        ]
+        return out
+
+    def alerts_for_parent(self, parent_id: str) -> list[dict]:
+        with self._lock:
+            ids = [r[0] for r in self._db.execute(
+                "SELECT id FROM alerts WHERE parent_id=? ORDER BY created_at DESC, rowid DESC", (parent_id,)
+            )]
+        return [a for i in ids if (a := self.alert_get(i))]
+
+    def alert_delivery_add(
+        self, alert_id: str, contact: str, channel: str, status: str, *, target: str = "", detail: str = "",
+        payload: dict | None = None,
+    ) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO alert_deliveries(alert_id, contact, channel, status, target, detail, payload_json, at) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                (alert_id, contact, channel, status, target, detail, json.dumps(payload or {}), _now().isoformat()),
+            )
+
+    def alerts_to_contact_since(self, contact: str, since: datetime) -> int:
+        """Alerts this family contact was sent (or would have been, when unconfigured) since ``since``.
+        One alert counts once however many channels carried it."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT COUNT(DISTINCT alert_id) FROM alert_deliveries WHERE contact=? AND at>=? "
+                "AND status IN ('sent','recorded')",
+                (contact, since.isoformat()),
+            ).fetchone()
+        return int(row[0])
+
+    def alert_ack(self, alert_id: str, by: str, via: str) -> bool:
+        """Mark acknowledged. True when this call did it, False when it was already acknowledged."""
+        with self._lock, self._db:
+            cur = self._db.execute(
+                "UPDATE alerts SET acked_at=?, acked_by=?, acked_via=? WHERE id=? AND acked_at IS NULL",
+                (_now().isoformat(), by, via, alert_id),
+            )
+            return cur.rowcount == 1
+
+    # --- telegram linking -----------------------------------------------------------------------
+    def telegram_link_create(self, code: str, parent_id: str, contact: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO telegram_links(code, parent_id, contact, created_at) VALUES(?,?,?,?)",
+                (code, parent_id, contact, _now().isoformat()),
+            )
+
+    def telegram_link_claim(self, code: str, chat_id: str, max_age: timedelta) -> tuple[str, str] | None:
+        """Bind an unused, unexpired code to a chat. Returns (parent_id, contact), or None for an unknown, used
+        or expired code. A contact keeps only its newest chat."""
+        with self._lock, self._db:
+            row = self._db.execute(
+                "SELECT parent_id, contact, created_at FROM telegram_links WHERE code=? AND chat_id IS NULL", (code,)
+            ).fetchone()
+            if not row or datetime.fromisoformat(row["created_at"]) < _now() - max_age:
+                return None
+            self._db.execute(
+                "DELETE FROM telegram_links WHERE parent_id=? AND contact=? AND chat_id IS NOT NULL",
+                (row["parent_id"], row["contact"]),
+            )
+            self._db.execute("UPDATE telegram_links SET chat_id=? WHERE code=?", (chat_id, code))
+            return row["parent_id"], row["contact"]
+
+    def telegram_chat(self, parent_id: str, contact: str) -> str | None:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT chat_id FROM telegram_links WHERE parent_id=? AND contact=? AND chat_id IS NOT NULL",
+                (parent_id, contact),
+            ).fetchone()
+        return row["chat_id"] if row else None
+
+    def telegram_contact_for_chat(self, chat_id: str) -> tuple[str, str] | None:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT parent_id, contact FROM telegram_links WHERE chat_id=?", (chat_id,)
+            ).fetchone()
+        return (row["parent_id"], row["contact"]) if row else None

@@ -90,6 +90,14 @@ class Settings:
     trust_forwarded_for: bool = False
     demo_parent_id: str = "michiko"  # parent the public /api/check endpoint analyses for
     web_dir: Path = REPO_ROOT / "web" / "out"  # Next.js static export, served at / when present
+    # Family alerts (alerts.py). A channel without its credentials records the alert instead of sending it.
+    telegram_bot_token: str | None = None
+    telegram_webhook_secret: str | None = None
+    resend_api_key: str | None = None
+    alert_email_from: str | None = None
+    public_base_url: str | None = None  # origin the family reaches this app on; links and the webhook use it
+    alert_max_per_contact: int = 5  # alerts one family contact receives per window (0 disables the limit)
+    alert_window_seconds: int = 3600
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -124,11 +132,25 @@ class Settings:
             trust_forwarded_for=_truthy(e.get("TRUST_FORWARDED_FOR")),
             demo_parent_id=e.get("SCAMSHIELD_DEMO_PARENT") or "michiko",
             web_dir=Path(e.get("SCAMSHIELD_WEB_DIR") or REPO_ROOT / "web" / "out"),
+            telegram_bot_token=e.get("TELEGRAM_BOT_TOKEN") or None,
+            telegram_webhook_secret=e.get("TELEGRAM_WEBHOOK_SECRET") or None,
+            resend_api_key=e.get("RESEND_API_KEY") or None,
+            alert_email_from=e.get("ALERT_EMAIL_FROM") or None,
+            public_base_url=(e.get("PUBLIC_BASE_URL") or "").strip().rstrip("/") or None,
+            alert_max_per_contact=int(e.get("ALERT_MAX_PER_CONTACT_PER_HOUR") or defaults.alert_max_per_contact),
         )
 
     @property
     def llm_offline(self) -> bool:
         return self.force_offline or not self.nebius_api_key
+
+    @property
+    def telegram_configured(self) -> bool:
+        return bool(self.telegram_bot_token) and not self.force_offline
+
+    @property
+    def email_configured(self) -> bool:
+        return bool(self.resend_api_key and self.alert_email_from) and not self.force_offline
 
     @property
     def search_offline(self) -> bool:

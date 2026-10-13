@@ -7,20 +7,29 @@ Routes:
 * ``PUT /parents/{id}/profile``, ``POST /parents/{id}/analyze``, ``GET /results/{id}``, ``GET /budget`` -
   full pipeline access for the family side and tests.
 * ``/`` - the Next.js static export in ``web/out`` (``SCAMSHIELD_WEB_DIR``) when it exists, so one
-  container serves both the PWA and the API. Alerts and the dashboard come later.
+  container serves both the PWA and the API. The dashboard comes later.
+* Family alerts (alerts.py): a 🔴 result from either analyze route alerts the parent's family contact(s).
+  ``POST /api/telegram/webhook`` takes the bot's updates (``/start <code>`` links a chat, "I called her" acknowledges),
+  ``POST /parents/{id}/telegram-link`` makes the link a family member opens, ``GET /api/alerts/{id}/ack`` is the
+  email's "I called her" link and ``GET /parents/{id}/alerts`` lists alerts, their deliveries and acknowledgements.
 
 Both analyze routes share the per-IP rate limit.
 """
 
 from __future__ import annotations
 
+import html
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .alerts import AlertOutcome, AlertService, alert_view
 from .config import Settings
 from .memory import Profile
 from .models import AnalysisResult, Channel, ContactMatch, Label, RawMessage, RedFlag
@@ -30,7 +39,16 @@ from .runtime import build_pipeline, load_profile
 
 MAX_CHECK_CHARS = 8000
 
-app = FastAPI(title="ScamShield core API", version="0.1.0")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Register the Telegram webhook when a token, a webhook secret and an https PUBLIC_BASE_URL are all set."""
+    get_alerts().register_webhook()
+    yield
+
+
+app = FastAPI(title="ScamShield core API", version="0.1.0", lifespan=lifespan)
 
 
 @lru_cache
@@ -40,6 +58,12 @@ def get_pipeline() -> Pipeline:
     pipeline = build_pipeline(settings)
     ensure_demo_profile(pipeline, settings)
     return pipeline
+
+
+@lru_cache
+def get_alerts() -> AlertService:
+    pipeline = get_pipeline()
+    return AlertService(pipeline.settings, pipeline.store)
 
 
 @lru_cache
@@ -83,7 +107,7 @@ class CheckRequest(BaseModel):
 
 class FamilyNotice(BaseModel):
     name: str | None = None  # first name shown on the red screen ("Kenji has been told")
-    notified: bool = False  # flips when the family alert (P0 #6) is wired
+    notified: bool = False  # true once an alert really went out (a recorded, unsent alert stays false)
 
 
 class CheckResponse(BaseModel):
@@ -114,7 +138,7 @@ def family_first_name(profile: Profile | None) -> str | None:
     return None
 
 
-def to_check_response(result: AnalysisResult, profile: Profile | None) -> CheckResponse:
+def to_check_response(result: AnalysisResult, profile: Profile | None, alert: AlertOutcome | None = None) -> CheckResponse:
     v = result.verdict
     return CheckResponse(
         id=result.id,
@@ -124,7 +148,7 @@ def to_check_response(result: AnalysisResult, profile: Profile | None) -> CheckR
         safe_action=v.safe_action,
         evidence_note=v.evidence_note,
         contact=result.contact,
-        family=FamilyNotice(name=family_first_name(profile), notified=False),
+        family=FamilyNotice(name=family_first_name(profile), notified=bool(alert and alert.notified)),
         language=result.triage.language,
         offline=result.offline,
         degraded=v.degraded,
@@ -141,7 +165,8 @@ def check(req: CheckRequest, request: Request) -> CheckResponse:
     parent_id = pipeline.settings.demo_parent_id
     raw = RawMessage(body=req.body, sender=req.sender or None, channel=req.channel, subject=req.subject)
     result = pipeline.analyze(raw, parent_id)
-    return to_check_response(result, pipeline.store.get_profile(parent_id))
+    profile = pipeline.store.get_profile(parent_id)
+    return to_check_response(result, profile, get_alerts().dispatch(result, profile))
 
 
 # --- health, budget + full pipeline ------------------------------------------------------------------
@@ -176,7 +201,9 @@ def put_profile(parent_id: str, profile: Profile) -> Profile:
 def analyze(parent_id: str, raw: RawMessage, request: Request) -> AnalysisResult:
     pipeline = get_pipeline()
     enforce_rate_limit(request, pipeline)
-    return pipeline.analyze(raw, parent_id)
+    result = pipeline.analyze(raw, parent_id)
+    get_alerts().dispatch(result, pipeline.store.get_profile(parent_id))
+    return result
 
 
 @app.get("/results/{analysis_id}")
@@ -185,6 +212,76 @@ def get_result(analysis_id: str) -> AnalysisResult:
     if result is None:
         raise HTTPException(404, "no such analysis")
     return result
+
+
+# --- family alerts -----------------------------------------------------------------------------------
+
+
+class TelegramLinkRequest(BaseModel):
+    contact: str = Field(min_length=1, max_length=200)
+
+
+@app.post("/parents/{parent_id}/telegram-link")
+def telegram_link(parent_id: str, req: TelegramLinkRequest) -> dict:
+    """Show this to the family member: opening ``url`` (t.me/<bot>?start=<code>) links their Telegram chat."""
+    profile = get_pipeline().store.get_profile(parent_id)
+    link = get_alerts().create_telegram_link(profile, req.contact) if profile else None
+    if link is None:
+        raise HTTPException(404, "no such family contact")
+    return link
+
+
+@app.get("/parents/{parent_id}/alerts")
+def list_alerts(parent_id: str) -> list[dict]:
+    return [alert_view(a) for a in get_pipeline().store.alerts_for_parent(parent_id)]
+
+
+@app.post("/api/telegram/webhook")
+def telegram_webhook(
+    update: dict = Body(...),
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+) -> dict:
+    alerts = get_alerts()
+    if alerts.telegram is None or not alerts.settings.telegram_webhook_secret:
+        raise HTTPException(404, "telegram is not configured")
+    if not alerts.webhook_secret_ok(x_telegram_bot_api_secret_token):
+        raise HTTPException(403, "bad secret")
+    alerts.handle_update(update)
+    return {"ok": True}
+
+
+def _ack_page(title: str, message: str, form_action: str | None = None, status: int = 200) -> HTMLResponse:
+    form = (
+        f'<form method="post" action="{html.escape(form_action, quote=True)}">'
+        '<button style="font-size:20px;padding:14px 24px;border:0;border-radius:8px;background:#1b6e3c;color:#fff">'
+        "Yes, I called her</button></form>"
+        if form_action
+        else ""
+    )
+    body = (
+        '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>{html.escape(title)}</title>"
+        '<body style="font-family:Arial,sans-serif;max-width:520px;margin:48px auto;padding:0 16px;line-height:1.5">'
+        f"<h1>{html.escape(title)}</h1><p>{html.escape(message)}</p>{form}</body>"
+    )
+    return HTMLResponse(body, status_code=status)
+
+
+@app.get("/api/alerts/{alert_id}/ack")
+def ack_page(alert_id: str, t: str = "") -> HTMLResponse:
+    """The email's "I called her" link. It only shows a confirm button: a mail scanner that prefetches links
+    must not mark an unmade call as made."""
+    if not get_alerts().token_valid(alert_id, t):
+        return _ack_page("Link not valid", "This link is wrong or has expired.", status=404)
+    return _ack_page("Did you call her?", "Confirm once you have spoken to her about this message.", f"/api/alerts/{alert_id}/ack?t={t}")
+
+
+@app.post("/api/alerts/{alert_id}/ack")
+def ack(alert_id: str, t: str = "") -> HTMLResponse:
+    newly = get_alerts().acknowledge_with_token(alert_id, t)
+    if newly is None:
+        return _ack_page("Link not valid", "This link is wrong or has expired.", status=404)
+    return _ack_page("Thanks", "Marked as called." if newly else "Already marked as called.")
 
 
 # --- static web (Next.js export) ---------------------------------------------------------------------
