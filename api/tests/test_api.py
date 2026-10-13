@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import sign_in
 from scamshield import main
 from scamshield.models import AnalysisResult
 
@@ -82,6 +83,8 @@ def test_check_unknown_delivery_without_fee_is_careful(client):
 def test_check_result_is_persisted_and_readable(client):
     r = client.post("/api/check", json={"body": "WARNING your computer is infected, call Microsoft Support at 1-800-555-0166 now"})
     analysis_id = r.json()["id"]
+    assert client.get(f"/results/{analysis_id}").status_code == 401  # the trace and call script are family-only
+    sign_in(client)
     full = client.get(f"/results/{analysis_id}")
     assert full.status_code == 200
     AnalysisResult.model_validate(full.json())

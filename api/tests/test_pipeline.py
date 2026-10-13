@@ -2,6 +2,7 @@ import json
 
 import httpx
 
+from conftest import sign_in
 from scamshield.config import Settings
 from scamshield.evaluation import run_eval
 from scamshield.llm import FakeLLMClient, LLMError, LLMRequest, LLMResponse
@@ -166,6 +167,8 @@ def test_api_analyze_roundtrip(monkeypatch):
     client = TestClient(main.app)
     assert client.get("/health").json()["offline"] is True
     body = {"body": "Final notice: pay $212 with a prepaid card today", "sender": "212-555-0121", "channel": "sms"}
+    assert client.post("/parents/p1/analyze", json=body).status_code == 401  # the family gate
+    sign_in(client, "p1")
     res = client.post("/parents/p1/analyze", json=body).json()
     assert res["verdict"]["label"] == "red"
     assert client.get(f"/results/{res['id']}").json()["id"] == res["id"]

@@ -1,0 +1,886 @@
+{
+  "note": "Sample past checks for the demo family (POST /api/demo/load). Content comes from the seed messages; each trace uses the Token Factory model ids with illustrative token counts and latencies, priced from the catalog. Real checks made on /check carry measured traces.",
+  "checks": [
+    {
+      "key": "bank",
+      "hours_ago": 2.5,
+      "result": {
+        "message": {
+          "channel": "email",
+          "sender": "statements@sakurabank-online.test",
+          "subject": "Your monthly statement is ready",
+          "body": "Your monthly statement is ready. Log in to view it: https://sakurabank-online.test/statement",
+          "urls": [
+            "https://sakurabank-online.test/statement"
+          ],
+          "phones": [],
+          "ts": "2026-10-06T14:38:00+09:00"
+        },
+        "triage": {
+          "signals": {
+            "urgency": false,
+            "money_request": false,
+            "impersonation": "bank",
+            "secrecy_request": false,
+            "credential_request": true,
+            "link_present": true,
+            "phone_present": false
+          },
+          "risk": "high",
+          "scam_type": "bank_phishing",
+          "key_phrase": null,
+          "language": "en",
+          "summary": "Email saying a statement is ready, with a login link on sakurabank-online.test, a look-alike of Sakura Example Bank's real address."
+        },
+        "contact": {
+          "status": "unknown",
+          "name": null,
+          "relationship": null,
+          "reason": "sakurabank-online.test imitates Sakura Example Bank's address (sakurabank.example.com) but is not it",
+          "lookalike_of": "Sakura Example Bank"
+        },
+        "lookups": [
+          {
+            "skill": "check_url",
+            "value": "https://sakurabank-online.test/statement",
+            "query": "sakurabank-online.test scam phishing",
+            "topic": "general",
+            "hits": [],
+            "raw_hit_count": 0,
+            "cached": false,
+            "skipped": null
+          }
+        ],
+        "verdict": {
+          "label": "red",
+          "score": 75,
+          "red_flags": [
+            {
+              "text": "The sender and link use sakurabank-online.test. It imitates Sakura Example Bank (sakurabank.example.com) but is not it.",
+              "evidence_url": null
+            },
+            {
+              "text": "It asks her to log in from a link in an email. Her bank only sends statements through its app.",
+              "evidence_url": null
+            }
+          ],
+          "safe_action": "Do not click the link. Open the Sakura Example Bank app yourself, or call the number on your bank card.",
+          "family_script": "Hi Mom, it's Kenji. I saw the bank statement email. Please don't click anything in it; the address isn't your bank's. I'll come by, or we can open the bank app together.",
+          "evidence_note": "No public reports of this address were found. The mismatch with Michiko's saved bank address is what flagged it.",
+          "degraded": false
+        },
+        "trace": {
+          "steps": [
+            {
+              "name": "normalize",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.1,
+              "cost_usd": 0.0,
+              "detail": "channel=email urls=1 phones=0",
+              "error": null
+            },
+            {
+              "name": "redact",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "nothing to redact",
+              "error": null
+            },
+            {
+              "name": "triage",
+              "kind": "model",
+              "tier": "fast",
+              "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+              "tokens_in": 612,
+              "tokens_out": 118,
+              "latency_ms": 840.0,
+              "cost_usd": 6.5e-05,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "memory",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.1,
+              "cost_usd": 0.0,
+              "detail": "unknown: sakurabank-online.test imitates Sakura Example Bank's address (sakurabank.example.com) but is not it",
+              "error": null
+            },
+            {
+              "name": "plan",
+              "kind": "model",
+              "tier": "mid",
+              "model": "nvidia/nemotron-3-super-120b-a12b",
+              "tokens_in": 905,
+              "tokens_out": 164,
+              "latency_ms": 1710.0,
+              "cost_usd": 0.000419,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "tavily:check_url",
+              "kind": "tool",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 880.0,
+              "cost_usd": 0.008,
+              "detail": "tavily: 0 raw results | q=sakurabank-online.test scam phishing",
+              "error": null
+            },
+            {
+              "name": "verdict",
+              "kind": "model",
+              "tier": "reason",
+              "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+              "tokens_in": 2380,
+              "tokens_out": 412,
+              "latency_ms": 5920.0,
+              "cost_usd": 0.003616,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "guardrails",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "imitates Sakura Example Bank's address: floor 75",
+              "error": null
+            }
+          ]
+        },
+        "offline": false,
+        "budget_mode": "normal"
+      },
+      "alert": {
+        "deliveries": [
+          {
+            "contact": "Kenji Hayashi",
+            "channel": "email",
+            "status": "recorded",
+            "target": "kenji.hayashi@family.example.com",
+            "detail": "Demo example: nothing was sent"
+          },
+          {
+            "contact": "Kenji Hayashi",
+            "channel": "telegram",
+            "status": "recorded",
+            "target": "(not linked)",
+            "detail": "Demo example: nothing was sent"
+          }
+        ]
+      }
+    },
+    {
+      "key": "parcel",
+      "hours_ago": 5.0,
+      "result": {
+        "message": {
+          "channel": "sms",
+          "sender": "+12125550175",
+          "subject": null,
+          "body": "Your order from Maple Garden Shop is out for delivery. Track: https://track-mapleparcel.example.com/8841",
+          "urls": [
+            "https://track-mapleparcel.example.com/8841"
+          ],
+          "phones": [],
+          "ts": "2026-10-07T15:48:00+09:00"
+        },
+        "triage": {
+          "signals": {
+            "urgency": false,
+            "money_request": false,
+            "impersonation": "delivery",
+            "secrecy_request": false,
+            "credential_request": false,
+            "link_present": true,
+            "phone_present": false
+          },
+          "risk": "medium",
+          "scam_type": "parcel_delivery",
+          "key_phrase": "Your order from Maple Garden Shop is out",
+          "language": "en",
+          "summary": "Delivery notice from an unknown number, with a tracking link on track-mapleparcel.example.com. It asks for no payment."
+        },
+        "contact": {
+          "status": "unknown",
+          "name": null,
+          "relationship": null,
+          "reason": "sender is not in the trusted contacts or known services",
+          "lookalike_of": null
+        },
+        "lookups": [
+          {
+            "skill": "check_url",
+            "value": "https://track-mapleparcel.example.com/8841",
+            "query": "track-mapleparcel.example.com scam phishing",
+            "topic": "general",
+            "hits": [],
+            "raw_hit_count": 0,
+            "cached": false,
+            "skipped": null
+          },
+          {
+            "skill": "check_phone",
+            "value": "+12125550175",
+            "query": "\"+12125550175\" OR \"212-555-0175\" OR \"(212) 555-0175\" scam OR fraud OR complaint",
+            "topic": "general",
+            "hits": [],
+            "raw_hit_count": 0,
+            "cached": false,
+            "skipped": null
+          },
+          {
+            "skill": "check_phrase",
+            "value": "Your order from Maple Garden Shop is out",
+            "query": "\"Your order from Maple Garden Shop is out\" scam",
+            "topic": "news",
+            "hits": [],
+            "raw_hit_count": 0,
+            "cached": false,
+            "skipped": null
+          }
+        ],
+        "verdict": {
+          "label": "yellow",
+          "score": 60,
+          "red_flags": [
+            {
+              "text": "The number is not Maple Garden Shop's. Her saved shop sends from orders@maplegarden.example.com.",
+              "evidence_url": null
+            },
+            {
+              "text": "It asks her to follow a tracking link on a site nobody has vouched for.",
+              "evidence_url": null
+            }
+          ],
+          "safe_action": "Don't tap the link. If you ordered from Maple Garden Shop, look for the order in their email or call the shop.",
+          "family_script": "Hi Mom, did you order something from Maple Garden Shop? If so, let's check the order in their email, not the text message link.",
+          "evidence_note": "No public reports found for this link or number.",
+          "degraded": false
+        },
+        "trace": {
+          "steps": [
+            {
+              "name": "normalize",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "channel=sms urls=1 phones=0",
+              "error": null
+            },
+            {
+              "name": "redact",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "nothing to redact",
+              "error": null
+            },
+            {
+              "name": "triage",
+              "kind": "model",
+              "tier": "fast",
+              "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+              "tokens_in": 612,
+              "tokens_out": 118,
+              "latency_ms": 840.0,
+              "cost_usd": 6.5e-05,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "memory",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.1,
+              "cost_usd": 0.0,
+              "detail": "unknown: sender is not in the trusted contacts or known services",
+              "error": null
+            },
+            {
+              "name": "plan",
+              "kind": "model",
+              "tier": "mid",
+              "model": "nvidia/nemotron-3-super-120b-a12b",
+              "tokens_in": 905,
+              "tokens_out": 164,
+              "latency_ms": 1710.0,
+              "cost_usd": 0.000419,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "tavily:check_url",
+              "kind": "tool",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 880.0,
+              "cost_usd": 0.008,
+              "detail": "tavily: 0 raw results | q=track-mapleparcel.example.com scam phishing",
+              "error": null
+            },
+            {
+              "name": "tavily:check_phone",
+              "kind": "tool",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 1130.0,
+              "cost_usd": 0.008,
+              "detail": "tavily: 0 raw results | q=\"+12125550175\" OR \"212-555-0175\" OR \"(212) 555-0175\" scam OR fraud OR complaint",
+              "error": null
+            },
+            {
+              "name": "tavily:check_phrase",
+              "kind": "tool",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 760.0,
+              "cost_usd": 0.008,
+              "detail": "tavily: 0 raw results | q=\"Your order from Maple Garden Shop is out\" scam",
+              "error": null
+            },
+            {
+              "name": "verdict",
+              "kind": "model",
+              "tier": "reason",
+              "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+              "tokens_in": 2380,
+              "tokens_out": 412,
+              "latency_ms": 5920.0,
+              "cost_usd": 0.003616,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "guardrails",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "no adjustments",
+              "error": null
+            }
+          ]
+        },
+        "offline": false,
+        "budget_mode": "normal"
+      }
+    },
+    {
+      "key": "pharmacy",
+      "hours_ago": 9.0,
+      "result": {
+        "message": {
+          "channel": "sms",
+          "sender": "+12125550110",
+          "subject": null,
+          "body": "Maple Pharmacy: Your prescription is ready for pickup. Open until 7pm today. Reply STOP to opt out.",
+          "urls": [],
+          "phones": [],
+          "ts": "2026-10-09T17:59:00+09:00"
+        },
+        "triage": {
+          "signals": {
+            "urgency": false,
+            "money_request": false,
+            "impersonation": "none",
+            "secrecy_request": false,
+            "credential_request": false,
+            "link_present": false,
+            "phone_present": false
+          },
+          "risk": "low",
+          "scam_type": null,
+          "key_phrase": null,
+          "language": "en",
+          "summary": "Prescription pickup reminder from Maple Pharmacy's saved number. No link, no payment."
+        },
+        "contact": {
+          "status": "known_service",
+          "name": "Maple Pharmacy",
+          "relationship": "pharmacy",
+          "reason": "sender matches known service Maple Pharmacy",
+          "lookalike_of": null
+        },
+        "lookups": [],
+        "verdict": {
+          "label": "green",
+          "score": 5,
+          "red_flags": [],
+          "safe_action": "This looks fine. No action needed.",
+          "family_script": "",
+          "evidence_note": "Not checked online: the sender is Michiko's saved pharmacy.",
+          "degraded": false
+        },
+        "trace": {
+          "steps": [
+            {
+              "name": "normalize",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "channel=sms urls=0 phones=0",
+              "error": null
+            },
+            {
+              "name": "redact",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "nothing to redact",
+              "error": null
+            },
+            {
+              "name": "triage",
+              "kind": "model",
+              "tier": "fast",
+              "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+              "tokens_in": 612,
+              "tokens_out": 118,
+              "latency_ms": 840.0,
+              "cost_usd": 6.5e-05,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "memory",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "known_service: sender matches known service Maple Pharmacy",
+              "error": null
+            },
+            {
+              "name": "fast_path",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "known service Maple Pharmacy, links on its own domain: skipped evidence and verdict model",
+              "error": null
+            }
+          ]
+        },
+        "offline": false,
+        "budget_mode": "normal"
+      }
+    },
+    {
+      "key": "police",
+      "hours_ago": 26.0,
+      "result": {
+        "message": {
+          "channel": "voicemail",
+          "sender": "+12125550133",
+          "subject": null,
+          "body": "This is Officer Daniels of the county sheriff's office. There is a warrant for your arrest because you missed jury duty. To avoid arrest, pay a $900 fine today using gift cards. Call me back at 212-555-0133.",
+          "urls": [],
+          "phones": [
+            "+12125550133"
+          ],
+          "ts": "2026-10-01T09:03:00+09:00"
+        },
+        "triage": {
+          "signals": {
+            "urgency": true,
+            "money_request": true,
+            "impersonation": "police",
+            "secrecy_request": false,
+            "credential_request": false,
+            "link_present": false,
+            "phone_present": true
+          },
+          "risk": "high",
+          "scam_type": "police_impersonation",
+          "key_phrase": "This is Officer Daniels of the county sheriff's",
+          "language": "en",
+          "summary": "Voicemail from someone claiming to be a county sheriff's officer, saying there is a warrant and asking for payment to avoid arrest."
+        },
+        "contact": {
+          "status": "unknown",
+          "name": null,
+          "relationship": null,
+          "reason": "sender is not in the trusted contacts or known services",
+          "lookalike_of": null
+        },
+        "lookups": [
+          {
+            "skill": "check_phone",
+            "value": "+12125550133",
+            "query": "\"+12125550133\" OR \"212-555-0133\" OR \"(212) 555-0133\" scam OR fraud OR complaint",
+            "topic": "general",
+            "hits": [
+              {
+                "title": "212-555-0133 fake sheriff scam calls",
+                "url": "https://phone-complaints.example.com/numbers/212-555-0133",
+                "content": "212-555-0133 is reported in fake sheriff warrant scam calls demanding payment by gift card. Police warn this is fraud.",
+                "excerpt": ""
+              }
+            ],
+            "raw_hit_count": 1,
+            "cached": false,
+            "skipped": null
+          },
+          {
+            "skill": "check_phrase",
+            "value": "This is Officer Daniels of the county sheriff's",
+            "query": "\"This is Officer Daniels of the county sheriff's\" scam",
+            "topic": "news",
+            "hits": [
+              {
+                "title": "Sheriff's office warns of warrant and jury duty scam calls",
+                "url": "https://consumer-advisories.example.com/fake-sheriff-warrant-calls",
+                "content": "Callers claiming to be from the county sheriff demand fines for missed jury duty. Real officers never ask for gift cards. Scam warning.",
+                "excerpt": ""
+              }
+            ],
+            "raw_hit_count": 1,
+            "cached": false,
+            "skipped": null
+          }
+        ],
+        "verdict": {
+          "label": "red",
+          "score": 100,
+          "red_flags": [
+            {
+              "text": "A caller claiming to be the sheriff's office asks for money. Real police never take payment by phone.",
+              "evidence_url": "https://consumer-advisories.example.com/fake-sheriff-warrant-calls"
+            },
+            {
+              "text": "The number has been reported by other people as a scam.",
+              "evidence_url": "https://phone-complaints.example.com/numbers/212-555-0133"
+            },
+            {
+              "text": "It pushes her to act within the hour.",
+              "evidence_url": null
+            }
+          ],
+          "safe_action": "Do not call back or pay anything. Hang up and tell your family.",
+          "family_script": "Hi Mom, the police won't ask for payment over the phone or by gift cards. Please don't call that number back. I'm going to phone you right now.",
+          "evidence_note": "Public reports found: 2 sources.",
+          "degraded": false
+        },
+        "trace": {
+          "steps": [
+            {
+              "name": "normalize",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "channel=voicemail urls=0 phones=1",
+              "error": null
+            },
+            {
+              "name": "redact",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "nothing to redact",
+              "error": null
+            },
+            {
+              "name": "triage",
+              "kind": "model",
+              "tier": "fast",
+              "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+              "tokens_in": 612,
+              "tokens_out": 118,
+              "latency_ms": 840.0,
+              "cost_usd": 6.5e-05,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "memory",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "unknown: sender is not in the trusted contacts or known services",
+              "error": null
+            },
+            {
+              "name": "plan",
+              "kind": "model",
+              "tier": "mid",
+              "model": "nvidia/nemotron-3-super-120b-a12b",
+              "tokens_in": 905,
+              "tokens_out": 164,
+              "latency_ms": 1710.0,
+              "cost_usd": 0.000419,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "tavily:check_phone",
+              "kind": "tool",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 880.0,
+              "cost_usd": 0.008,
+              "detail": "tavily: 1 raw results | q=\"+12125550133\" OR \"212-555-0133\" OR \"(212) 555-0133\" scam OR fraud OR complaint",
+              "error": null
+            },
+            {
+              "name": "tavily:check_phrase",
+              "kind": "tool",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 1130.0,
+              "cost_usd": 0.008,
+              "detail": "tavily: 1 raw results | q=\"This is Officer Daniels of the county sheriff's\" scam",
+              "error": null
+            },
+            {
+              "name": "tavily:extract",
+              "kind": "tool",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 760.0,
+              "cost_usd": 0.0016,
+              "detail": "tavily: 118 chars | q=https://phone-complaints.example.com/numbers/212-555-0133",
+              "error": null
+            },
+            {
+              "name": "verdict",
+              "kind": "model",
+              "tier": "reason",
+              "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+              "tokens_in": 2380,
+              "tokens_out": 412,
+              "latency_ms": 5920.0,
+              "cost_usd": 0.003616,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "guardrails",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "unknown sender asks for money: floor 50",
+              "error": null
+            }
+          ]
+        },
+        "offline": false,
+        "budget_mode": "normal"
+      },
+      "alert": {
+        "deliveries": [
+          {
+            "contact": "Kenji Hayashi",
+            "channel": "email",
+            "status": "recorded",
+            "target": "kenji.hayashi@family.example.com",
+            "detail": "Demo example: nothing was sent"
+          },
+          {
+            "contact": "Kenji Hayashi",
+            "channel": "telegram",
+            "status": "recorded",
+            "target": "(not linked)",
+            "detail": "Demo example: nothing was sent"
+          }
+        ],
+        "acked_hours_ago": 24.5,
+        "acked_by": "Kenji Hayashi",
+        "acked_via": "telegram"
+      }
+    },
+    {
+      "key": "statement",
+      "hours_ago": 31.0,
+      "result": {
+        "message": {
+          "channel": "email",
+          "sender": "no-reply@sakurabank.example.com",
+          "subject": "Your October statement is ready",
+          "body": "Your October statement is now available. Please log in through the Sakura Example Bank app or visit https://www.sakurabank.example.com/statements to view it. We will never ask for your password by phone or email.",
+          "urls": [
+            "https://www.sakurabank.example.com/statements"
+          ],
+          "phones": [],
+          "ts": "2026-10-07T15:45:00+09:00"
+        },
+        "triage": {
+          "signals": {
+            "urgency": false,
+            "money_request": false,
+            "impersonation": "none",
+            "secrecy_request": false,
+            "credential_request": false,
+            "link_present": false,
+            "phone_present": false
+          },
+          "risk": "low",
+          "scam_type": null,
+          "key_phrase": null,
+          "language": "en",
+          "summary": "Statement notice from Sakura Example Bank's saved address. It points to the bank app, not a link."
+        },
+        "contact": {
+          "status": "known_service",
+          "name": "Sakura Example Bank",
+          "relationship": "bank",
+          "reason": "sender matches known service Sakura Example Bank",
+          "lookalike_of": null
+        },
+        "lookups": [],
+        "verdict": {
+          "label": "green",
+          "score": 5,
+          "red_flags": [],
+          "safe_action": "This looks fine. No action needed.",
+          "family_script": "",
+          "evidence_note": "Not checked online: the sender is Michiko's saved bank and every link is on its own site.",
+          "degraded": false
+        },
+        "trace": {
+          "steps": [
+            {
+              "name": "normalize",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "channel=email urls=1 phones=0",
+              "error": null
+            },
+            {
+              "name": "redact",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "nothing to redact",
+              "error": null
+            },
+            {
+              "name": "triage",
+              "kind": "model",
+              "tier": "fast",
+              "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+              "tokens_in": 612,
+              "tokens_out": 118,
+              "latency_ms": 840.0,
+              "cost_usd": 6.5e-05,
+              "detail": "",
+              "error": null
+            },
+            {
+              "name": "memory",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.1,
+              "cost_usd": 0.0,
+              "detail": "known_service: sender matches known service Sakura Example Bank",
+              "error": null
+            },
+            {
+              "name": "fast_path",
+              "kind": "local",
+              "tier": null,
+              "model": null,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "latency_ms": 0.0,
+              "cost_usd": 0.0,
+              "detail": "known service Sakura Example Bank, links on its own domain: skipped evidence and verdict model",
+              "error": null
+            }
+          ]
+        },
+        "offline": false,
+        "budget_mode": "normal"
+      }
+    }
+  ]
+}

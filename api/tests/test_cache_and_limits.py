@@ -4,6 +4,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import sign_in
 from scamshield.config import Settings
 from scamshield.llm import FakeLLMClient, LLMError
 from scamshield.memory import MemoryStore
@@ -142,7 +143,9 @@ def make_client(monkeypatch, **env):
         monkeypatch.setenv(k, v)
     main.get_pipeline.cache_clear()
     main.get_limiter.cache_clear()
-    return TestClient(main.app), main
+    client = TestClient(main.app)
+    sign_in(client, "p1")
+    return client, main
 
 
 def test_analyze_endpoint_is_rate_limited_per_ip(monkeypatch):
