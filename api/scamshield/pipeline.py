@@ -1,10 +1,13 @@
-"""The analyze pipeline: normalize -> redact -> triage -> memory -> evidence -> verdict -> persist.
+"""The analyze pipeline: normalize -> verdict cache -> redact -> triage -> memory -> evidence -> verdict -> persist.
 
-Every step appends to a per-message ``Trace`` (model, tokens, latency, estimated cost) stored with the result.
+Every step appends to a per-message ``Trace`` (model, tokens, latency, cost at the listed Token Factory prices)
+stored with the result. A repeat of the same message (same parent profile, same models) is answered from the
+verdict cache for free; the budget guard (``budget.py``) can downgrade or refuse the paid steps.
 """
 
 from __future__ import annotations
 
+import hashlib
 import time
 import uuid
 from datetime import datetime, timezone
@@ -12,7 +15,8 @@ from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from . import prompts
-from .config import Settings
+from .budget import KILLED, NORMAL, Budget
+from .config import TIERS, Settings, model_key
 from .llm import LLMClient, LLMError, ModelRouter
 from .memory import MemoryStore, Profile, compare_to_contacts, service_owns_all_links
 from .models import (
@@ -28,13 +32,14 @@ from .models import (
     Verdict,
     label_for,
 )
-from .normalize import normalize
+from .normalize import domain_of, normalize
 from .planning import candidates_for, default_plan, validate_plan
 from .redact import redact
 from .search.base import SearchClient
 from .skills import SKILLS, EvidenceDesk
 
 SNIPPET_CHARS = 300
+EXCERPT_CHARS = 1200
 
 
 class Pipeline:
@@ -43,16 +48,47 @@ class Pipeline:
         self.llm = llm
         self.search = search
         self.store = store
-        self.router = ModelRouter(llm, settings)
+        self.budget = Budget(store, settings)
+        self.router = ModelRouter(llm, settings, self.budget)
+
+    def use_store(self, store: MemoryStore) -> None:
+        """Swap the database (the eval runs on a fresh in-memory one); the budget ledger moves with it."""
+        self.store = store
+        self.budget.store = store
+
+    def cache_key(self, message: Message, profile: Profile) -> str:
+        """Verdict cache key: the message hash plus everything that changes the answer (who it is for, what the
+        profile says, which models and clients produced it)."""
+        parts = [
+            profile.id,
+            hashlib.sha256(profile.model_dump_json().encode()).hexdigest(),
+            message.sender or "",
+            message.subject or "",
+            " ".join(message.body.split()),
+            self.llm.name,
+            self.search.name,
+            *(model_key(self.settings.model_for(t)) for t in TIERS),
+        ]
+        return hashlib.sha256("\x1f".join(parts).encode()).hexdigest()
 
     # ------------------------------------------------------------------------------------------------
-    def analyze(self, raw: RawMessage, parent_id: str) -> AnalysisResult:
+    def analyze(self, raw: RawMessage, parent_id: str, *, use_cache: bool = True, pin: bool = False) -> AnalysisResult:
+        """Analyze one message. ``use_cache=False`` forces a fresh run; ``pin=True`` stores the verdict with no
+        expiry (``scamshield warm`` does this for the seed messages so the demo costs nothing)."""
         profile = self.store.get_profile(parent_id) or Profile(id=parent_id, name=parent_id)
         trace = Trace()
 
         with _timed(trace, "normalize") as step:
             message = normalize(raw)
             step.detail = f"channel={message.channel} urls={len(message.urls)} phones={len(message.phones)}"
+
+        key = self.cache_key(message, profile)
+        if use_cache and (cached := self.store.verdict_cache_get(key, self.settings.verdict_cache_ttl_seconds)):
+            return self._serve_cached(cached, message, trace, profile, parent_id)
+
+        mode = self.budget.status()
+        if mode.mode != NORMAL:
+            trace.steps.append(TraceStep(name="budget", detail=f"{mode.mode}: {mode.reason}"))
 
         with _timed(trace, "redact") as step:
             redacted = redact(message.body)
@@ -86,6 +122,34 @@ class Pipeline:
             verdict=verdict,
             trace=trace,
             offline=self.llm.offline or self.search.offline,
+            budget_mode=mode.mode,
+        )
+        self.store.save_analysis(result, keep_body=profile.store_green_bodies)
+        # Only a clean, full-strength run is worth replaying: never cache a degraded or failed answer.
+        if mode.mode == NORMAL and not verdict.degraded and not any(s.error for s in trace.steps):
+            self.store.verdict_cache_put(key, _cacheable(result, profile), pinned=pin)
+        return result
+
+    def _serve_cached(
+        self, cached: AnalysisResult, message: Message, trace: Trace, profile: Profile, parent_id: str
+    ) -> AnalysisResult:
+        trace.steps.append(
+            TraceStep(
+                name="verdict_cache",
+                detail=f"hit: verdict of {cached.id} replayed, no model or search call (original run cost "
+                f"${cached.trace.total_cost_usd:.5f})",
+            )
+        )
+        result = cached.model_copy(
+            update={
+                "id": uuid.uuid4().hex[:12],
+                "parent_id": parent_id,
+                "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "message": message,
+                "trace": trace,
+                "cached_from": cached.id,
+                "budget_mode": self.budget.mode,
+            }
         )
         self.store.save_analysis(result, keep_body=profile.store_green_bodies)
         return result
@@ -108,7 +172,7 @@ class Pipeline:
 
     def _fast_path_note(self, triage: Triage, contact: ContactMatch, profile: Profile, message: Message) -> str | None:
         sig = triage.signals
-        if triage.risk == "none":
+        if triage.risk == "none" and not contact.lookalike_of:
             return "no risk signals"
         if contact.status == "trusted" and not (sig.money_request or sig.secrecy_request):
             return f"trusted contact {contact.name}"
@@ -153,8 +217,25 @@ class Pipeline:
             if not plan:  # planner failed or proposed nothing usable
                 plan = validate_plan({"lookups": default_plan(candidates, triage.key_phrase)}, candidates, message.body, limit)
 
-        desk = EvidenceDesk(self.search, self.store, self.settings, trace)
-        return [SKILLS[item["skill"]](desk, item["value"]) for item in plan]
+        desk = EvidenceDesk(self.search, self.store, self.settings, trace, self.budget)
+        lookups = [SKILLS[item["skill"]](desk, item["value"]) for item in plan]
+        self._extract_top_source(desk, lookups, message)
+        return lookups
+
+    def _extract_top_source(self, desk: EvidenceDesk, lookups: list[Lookup], message: Message) -> None:
+        """Spend the one allowed Tavily extract on the best evidence page, so the verdict reads more than a snippet.
+        Only pages that a search returned are read; a page on a domain the message itself links to never is."""
+        if desk.extract_left <= 0:
+            return
+        message_hosts = {domain_of(u) for u in message.urls}
+        for lk in lookups:
+            for hit in lk.hits:
+                if domain_of(hit.url) in message_hosts:
+                    continue
+                text = desk.extract(hit.url)
+                if len(text) > len(hit.content):
+                    hit.excerpt = text
+                return
 
     # --- verdict ----------------------------------------------------------------------------------
     def _verdict(
@@ -173,7 +254,13 @@ class Pipeline:
                 "skill": lk.skill,
                 "value": lk.value,
                 "reports": [
-                    {"title": h.title, "url": h.url, "snippet": h.content[:SNIPPET_CHARS]} for h in lk.hits
+                    {
+                        "title": h.title,
+                        "url": h.url,
+                        "snippet": h.content[:SNIPPET_CHARS],
+                        **({"page_text": h.excerpt[:EXCERPT_CHARS]} if h.excerpt else {}),
+                    }
+                    for h in lk.hits
                 ],
             }
             for lk in lookups
@@ -211,6 +298,8 @@ class Pipeline:
         stripped = sum(1 for f in flags if f.evidence_url and f.evidence_url not in allowed)
         flags = [RedFlag(text=f.text, evidence_url=f.evidence_url if f.evidence_url in allowed else None) for f in flags]
 
+        if contact.lookalike_of and contact.status != "trusted":
+            flags.insert(0, RedFlag(text=f"The address looks like {contact.lookalike_of}'s, but it is not the real one."))
         score, note = apply_memory_guardrails(score, triage, contact, message, profile)
         details = []
         if note:
@@ -240,6 +329,8 @@ def apply_memory_guardrails(
     """Deterministic floors/caps so memory always counts, whatever the model said."""
     sig = triage.signals
     asks = sig.money_request or sig.secrecy_request
+    if contact.lookalike_of and contact.status != "trusted":
+        return max(score, 75), f"imitates {contact.lookalike_of}'s address: floor 75"
     if contact.status == "trusted":
         if asks:
             return max(score, 30), "trusted contact but asks for money/secrecy: at least 'careful'"
@@ -276,6 +367,15 @@ def _parse_flags(raw: object) -> list[RedFlag]:
             url = item.get("evidence_url")
             flags.append(RedFlag(text=str(item["text"]), evidence_url=url if isinstance(url, str) and url else None))
     return flags
+
+
+def _cacheable(result: AnalysisResult, profile: Profile) -> AnalysisResult:
+    """The result as stored in the verdict cache: same privacy rule as the analyses table (a 🟢 body is dropped)."""
+    if result.verdict.label == "green" and not profile.store_green_bodies:
+        result = result.model_copy(deep=True)
+        result.message.body = ""
+        result.message.subject = None
+    return result
 
 
 def _clean_triage(data: dict) -> dict:

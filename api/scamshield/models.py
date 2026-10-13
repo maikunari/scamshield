@@ -64,12 +64,14 @@ class ContactMatch(BaseModel):
     name: str | None = None
     relationship: str | None = None
     reason: str = ""
+    lookalike_of: str | None = None  # known service whose address this sender or link imitates
 
 
 class SearchHit(BaseModel):
     title: str = ""
     url: str
     content: str = ""
+    excerpt: str = ""  # page text from the one Tavily extract allowed per message, when it was used
 
 
 class Lookup(BaseModel):
@@ -140,6 +142,8 @@ class AnalysisResult(BaseModel):
     verdict: Verdict
     trace: Trace
     offline: bool = False
+    budget_mode: str = "normal"  # normal | degraded (Nano-only) | exhausted | killed
+    cached_from: str | None = None  # id of the earlier analysis this verdict was served from
 
 
 def label_for(score: int) -> Label:

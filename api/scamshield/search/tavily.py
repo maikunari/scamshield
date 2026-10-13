@@ -40,3 +40,14 @@ class TavilyClient:
             for r in results
             if r.get("url")
         ]
+
+    def extract(self, url: str, *, max_chars: int = 1500) -> str:
+        """Tavily Extract for one URL (1 credit per 5 URLs). Returns "" when Tavily could not read the page."""
+        try:
+            resp = self._client.post("/extract", json={"urls": [url], "extract_depth": "basic", "format": "text"})
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+        except (httpx.HTTPError, ValueError) as exc:
+            raise SearchError(f"Tavily extract failed: {exc}") from exc
+        text = (results[0].get("raw_content") or "") if results else ""
+        return " ".join(text.split())[:max_chars]

@@ -162,6 +162,7 @@ def test_api_analyze_roundtrip(monkeypatch):
     from scamshield import main
 
     main.get_pipeline.cache_clear()
+    main.get_limiter.cache_clear()
     client = TestClient(main.app)
     assert client.get("/health").json()["offline"] is True
     body = {"body": "Final notice: pay $212 with a prepaid card today", "sender": "212-555-0121", "channel": "sms"}
@@ -170,3 +171,4 @@ def test_api_analyze_roundtrip(monkeypatch):
     assert client.get(f"/results/{res['id']}").json()["id"] == res["id"]
     assert client.get("/results/nope").status_code == 404
     main.get_pipeline.cache_clear()
+    main.get_limiter.cache_clear()

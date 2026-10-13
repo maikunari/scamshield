@@ -63,7 +63,7 @@ def run_eval(pipeline: Pipeline) -> EvalReport:
     settings = pipeline.settings
     profile = load_profile(settings.seed_dir)
     expected = load_expected(settings.seed_dir)
-    pipeline.store = MemoryStore(":memory:")
+    pipeline.use_store(MemoryStore(":memory:"))
     pipeline.store.save_profile(profile)
     report = EvalReport()
     for mid, raw in load_seed_messages(settings.seed_dir):

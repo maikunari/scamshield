@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
@@ -26,6 +27,14 @@ CREATE TABLE IF NOT EXISTS analyses (
 CREATE TABLE IF NOT EXISTS search_cache (
     key TEXT PRIMARY KEY, created_at TEXT NOT NULL, hits_json TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS verdict_cache (
+    key TEXT PRIMARY KEY, created_at TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, result_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS spend (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, at TEXT NOT NULL,
+    kind TEXT NOT NULL, tier TEXT NOT NULL, usd REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS spend_day ON spend(day);
 """
 
 
@@ -59,8 +68,44 @@ def _phones(values: list[str]) -> set[str]:
     return {p for v in values if (p := to_e164(v))}
 
 
+MIN_BRAND_CHARS = 5
+
+
+def _squash(host: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", host.lower())
+
+
+def lookalike_service(profile: Profile, message: Message) -> tuple[KnownService, str] | None:
+    """A known service whose domain this message imitates: the sender's or a link's host is not the service's
+    domain (or a subdomain of it) but contains its brand label with the dots and hyphens removed, so
+    ``sakurabank-online.test`` and ``sakurabank.example.com.evil.test`` both imitate ``sakurabank.example.com``."""
+    hosts = [domain_of(u) for u in message.urls]
+    if message.sender and "@" in message.sender:
+        hosts.append(message.sender.split("@", 1)[1])
+    for host in dict.fromkeys(h.lower() for h in hosts if h):
+        for service in profile.known_services:
+            for owned in (d.lower() for d in service.domains):
+                if host == owned or host.endswith("." + owned):
+                    continue
+                brand = _squash(owned.split(".")[0])
+                if len(brand) >= MIN_BRAND_CHARS and brand in _squash(host):
+                    return service, host
+    return None
+
+
 def compare_to_contacts(profile: Profile, message: Message) -> ContactMatch:
-    """Skill ``compare_to_contacts``: is the sender someone this parent knows?"""
+    """Skill ``compare_to_contacts``: is the sender someone this parent knows? Also flags a sender or link that
+    imitates one of the parent's known services (``lookalike_of``)."""
+    match = _match_sender(profile, message)
+    if match.status != "trusted" and (look := lookalike_service(profile, message)):
+        service, host = look
+        match.lookalike_of = service.name
+        note = f"{host} imitates {service.name}'s address ({', '.join(service.domains)}) but is not it"
+        match.reason = f"{match.reason}; {note}" if match.status != "unknown" else note
+    return match
+
+
+def _match_sender(profile: Profile, message: Message) -> ContactMatch:
     sender = message.sender
     if sender:
         for c in profile.trusted_contacts:
@@ -168,3 +213,46 @@ class MemoryStore:
                 "INSERT OR REPLACE INTO search_cache VALUES(?,?,?)",
                 (key, _now().isoformat(), json.dumps(hits)),
             )
+
+    # --- verdict cache --------------------------------------------------------------------------
+    def verdict_cache_get(self, key: str, ttl_seconds: int) -> AnalysisResult | None:
+        """A previous analysis for the same message/profile/models. Pinned entries (the warmed seed set) never expire."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT created_at, pinned, result_json FROM verdict_cache WHERE key=?", (key,)
+            ).fetchone()
+        if not row:
+            return None
+        if not row["pinned"] and datetime.fromisoformat(row["created_at"]) < _now() - timedelta(seconds=ttl_seconds):
+            return None
+        return AnalysisResult.model_validate_json(row["result_json"])
+
+    def verdict_cache_put(self, key: str, result: AnalysisResult, *, pinned: bool = False) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO verdict_cache VALUES(?,?,?,?)",
+                (key, _now().isoformat(), int(pinned), result.model_dump_json()),
+            )
+
+    # --- spend ledger ---------------------------------------------------------------------------
+    def spend_add(self, kind: str, tier: str, usd: float) -> None:
+        """Append to the ledger. ``kind`` is ``model`` or ``tool``; ``tier`` is the tier that was actually called."""
+        now = _now()
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO spend(day, at, kind, tier, usd) VALUES(?,?,?,?,?)",
+                (now.strftime("%Y-%m-%d"), now.isoformat(), kind, tier, usd),
+            )
+
+    def spend_total(self) -> float:
+        with self._lock:
+            return float(self._db.execute("SELECT COALESCE(SUM(usd), 0) FROM spend").fetchone()[0])
+
+    def spend_today(self, tier: str) -> tuple[int, float]:
+        """(calls, usd) booked against ``tier`` since 00:00 UTC."""
+        day = _now().strftime("%Y-%m-%d")
+        with self._lock:
+            row = self._db.execute(
+                "SELECT COUNT(*), COALESCE(SUM(usd), 0) FROM spend WHERE day=? AND tier=?", (day, tier)
+            ).fetchone()
+        return int(row[0]), float(row[1])
