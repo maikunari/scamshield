@@ -11,26 +11,50 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"  # unverified, override with NEBIUS_BASE_URL
+DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"  # confirmed in the Token Factory quickstart
 TAVILY_URL = "https://api.tavily.com"
 
-TIERS = ("fast", "mid", "reason")
-TIER_ENV = {"fast": "MODEL_FAST", "mid": "MODEL_MID", "reason": "MODEL_REASON"}
+TIERS = ("fast", "mid", "reason", "long")
+TIER_ENV = {"fast": "MODEL_FAST", "mid": "MODEL_MID", "reason": "MODEL_REASON", "long": "MODEL_LONG"}
 
-# USD per 1M tokens (input, output). Placeholder estimates until docs/models.md is generated from
-# the real /models listing; override per tier with PRICE_<TIER>_IN / PRICE_<TIER>_OUT.
-DEFAULT_PRICES = {
-    "fast": (0.06, 0.24),
-    "mid": (0.15, 0.60),
-    "reason": (0.60, 1.80),
+# Default model ids, exactly as listed in the Token Factory model catalog (the casing there is inconsistent, so
+# every comparison goes through ``model_key``). ``long`` is Nemotron 3.5 Lightning, reserved for the digest.
+DEFAULT_MODELS = {
+    "fast": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+    "mid": "nvidia/nemotron-3-super-120b-a12b",
+    "reason": "nvidia/Nemotron-3-Ultra-550b-a55b",
+    "long": "nvidia/Nemotron-3_5-Lightning",
 }
-DEFAULT_TAVILY_COST = 0.008  # USD per live search call (placeholder, TAVILY_COST_PER_CALL)
+
+# USD per 1M tokens (input, output), from the Token Factory model catalog (2026-10-13), keyed by lowercase model id.
+MODEL_PRICES = {
+    "nvidia/nvidia-nemotron-3-nano-30b-a3b": (0.06, 0.24),
+    "nvidia/nemotron-3-super-120b-a12b": (0.30, 0.90),
+    "nvidia/nemotron-3-ultra-550b-a55b": (1.00, 3.00),
+    "nvidia/nemotron-3_5-lightning": (0.06, 0.24),
+}
+# Fallback per tier for ids that are not in the table (including the offline ``fake/<tier>`` ids).
+# Override per tier with PRICE_<TIER>_IN / PRICE_<TIER>_OUT.
+DEFAULT_PRICES = {tier: MODEL_PRICES[DEFAULT_MODELS[tier].lower()] for tier in TIERS}
+DEFAULT_TAVILY_COST = 0.008  # USD per Tavily credit (pay-as-you-go list price, TAVILY_COST_PER_CALL)
+TAVILY_EXTRACT_CREDITS_PER_URL = 0.2  # extract bills 1 credit per 5 successful URLs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class ConfigError(RuntimeError):
     pass
+
+
+def model_key(model_id: str) -> str:
+    """Canonical form for comparing model ids: Token Factory's catalog mixes casing."""
+    return model_id.strip().lower()
+
+
+def resolve_model_id(wanted: str, available: list[str]) -> str | None:
+    """The catalog's spelling of ``wanted`` (case-insensitive), or None when it is not listed."""
+    by_key = {model_key(m): m for m in available}
+    return by_key.get(model_key(wanted))
 
 
 def _truthy(value: str | None) -> bool:
@@ -41,36 +65,61 @@ def _truthy(value: str | None) -> bool:
 class Settings:
     nebius_api_key: str | None = None
     nebius_base_url: str = DEFAULT_BASE_URL
-    models: dict[str, str | None] = field(default_factory=dict)
+    models: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_MODELS))
     prices: dict[str, tuple[float, float]] = field(default_factory=lambda: dict(DEFAULT_PRICES))
+    price_overrides: frozenset[str] = frozenset()  # tiers whose price came from PRICE_<TIER>_* env vars
     tavily_api_key: str | None = None
     tavily_cost_per_call: float = DEFAULT_TAVILY_COST
     force_offline: bool = False
     db_path: str = "scamshield.db"
     seed_dir: Path = REPO_ROOT / "seed"
     cache_ttl_seconds: int = 24 * 3600
+    verdict_cache_ttl_seconds: int = 24 * 3600
     max_search_calls: int = 3
+    max_extract_calls: int = 1
+    # Budget guard (see budget.py). Spend is in USD as estimated in the trace.
+    daily_ultra_call_cap: int = 300
+    daily_ultra_usd_cap: float = 10.0
+    total_spend_cap_usd: float = 40.0
+    degrade_at_fraction: float = 0.8  # Nano-only once this share of the total cap is spent
+    kill_switch: bool = False
+    kill_file: str | None = None  # the kill switch is also on while this file exists
+    # Per-IP limit on the analyze endpoint; 0 disables it.
+    rate_limit_per_window: int = 10
+    rate_limit_window_seconds: int = 60
+    trust_forwarded_for: bool = False
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
         e = os.environ if env is None else env
         prices = dict(DEFAULT_PRICES)
+        overrides: set[str] = set()
         for tier in TIERS:
             pin = e.get(f"PRICE_{tier.upper()}_IN")
             pout = e.get(f"PRICE_{tier.upper()}_OUT")
             if pin or pout:
                 base = prices[tier]
                 prices[tier] = (float(pin) if pin else base[0], float(pout) if pout else base[1])
+                overrides.add(tier)
+        defaults = cls()
         return cls(
             nebius_api_key=e.get("NEBIUS_API_KEY") or None,
             nebius_base_url=e.get("NEBIUS_BASE_URL") or DEFAULT_BASE_URL,
-            models={t: e.get(TIER_ENV[t]) or None for t in TIERS},
+            models={t: e.get(TIER_ENV[t]) or DEFAULT_MODELS[t] for t in TIERS},
             prices=prices,
+            price_overrides=frozenset(overrides),
             tavily_api_key=e.get("TAVILY_API_KEY") or None,
             tavily_cost_per_call=float(e.get("TAVILY_COST_PER_CALL") or DEFAULT_TAVILY_COST),
             force_offline=_truthy(e.get("SCAMSHIELD_OFFLINE")),
             db_path=e.get("SCAMSHIELD_DB") or "scamshield.db",
             seed_dir=Path(e.get("SCAMSHIELD_SEED_DIR") or REPO_ROOT / "seed"),
+            daily_ultra_call_cap=int(e.get("BUDGET_DAILY_ULTRA_CALLS") or defaults.daily_ultra_call_cap),
+            daily_ultra_usd_cap=float(e.get("BUDGET_DAILY_ULTRA_USD") or defaults.daily_ultra_usd_cap),
+            total_spend_cap_usd=float(e.get("BUDGET_TOTAL_USD") or defaults.total_spend_cap_usd),
+            kill_switch=_truthy(e.get("BUDGET_KILL_SWITCH")),
+            kill_file=e.get("BUDGET_KILL_FILE") or None,
+            rate_limit_per_window=int(e.get("RATE_LIMIT_PER_MINUTE") or defaults.rate_limit_per_window),
+            trust_forwarded_for=_truthy(e.get("TRUST_FORWARDED_FOR")),
         )
 
     @property
@@ -83,12 +132,13 @@ class Settings:
 
     def model_for(self, tier: str) -> str:
         """Model id for a tier. Offline, the fake reports ``fake/<tier>``."""
-        model = self.models.get(tier)
-        if model:
-            return model
         if self.llm_offline:
             return f"fake/{tier}"
-        raise ConfigError(
-            f"{TIER_ENV[tier]} is not set. Run scripts/discover_models.py to list the models "
-            f"available on Token Factory, then export {TIER_ENV[tier]}=<model id>."
-        )
+        return self.models[tier]
+
+    def price_for(self, tier: str, model: str) -> tuple[float, float]:
+        """USD per 1M (input, output) tokens. An explicit PRICE_<TIER> override wins, then the catalog price of
+        ``model`` (matched case-insensitively), then the tier default."""
+        if tier in self.price_overrides:
+            return self.prices[tier]
+        return MODEL_PRICES.get(model_key(model), self.prices[tier])

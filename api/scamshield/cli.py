@@ -15,7 +15,10 @@ ICON = {"green": "🟢 Safe", "yellow": "🟡 Careful", "red": "🔴 Scam: do no
 
 def format_result(r: AnalysisResult) -> str:
     v = r.verdict
-    lines = [f"{ICON[v.label]}  (score {v.score}/100){'  [offline fakes]' if r.offline else ''}"]
+    tags = ("  [offline fakes]" if r.offline else "") + (f"  [budget: {r.budget_mode}]" if r.budget_mode != "normal" else "")
+    lines = [f"{ICON[v.label]}  (score {v.score}/100){tags}"]
+    if r.cached_from:
+        lines.append(f"  (replayed from cached analysis {r.cached_from}, no model or search call)")
     lines.append(f"  sender: {r.message.sender or 'unknown'}  ->  {r.contact.status}" + (f" ({r.contact.name})" if r.contact.name else ""))
     for f in v.red_flags:
         lines.append(f"  - {f.text}" + (f"\n      evidence: {f.evidence_url}" if f.evidence_url else ""))
@@ -35,6 +38,25 @@ def format_result(r: AnalysisResult) -> str:
     return "\n".join(lines)
 
 
+def warm(settings: Settings, db_path: str) -> int:
+    """Run the seed set once with the configured clients and pin each verdict in the verdict cache of ``db_path``."""
+    store = MemoryStore(db_path)
+    profile = load_profile(settings.seed_dir)
+    store.save_profile(profile)
+    try:
+        pipeline = build_pipeline(settings, store)
+        for mid, raw in load_seed_messages(settings.seed_dir):
+            r = pipeline.analyze(raw, profile.id, use_cache=False, pin=True)
+            pinned = store.verdict_cache_get(pipeline.cache_key(r.message, profile), 0) is not None
+            note = "pinned" if pinned else f"NOT cached (budget={r.budget_mode}, degraded or errors)"
+            print(f"{mid} {r.verdict.label:<6} {r.verdict.score:>3}  ${r.trace.total_cost_usd:.5f}  {note}")
+    except ConfigError as exc:
+        print(f"config error: {exc}", file=sys.stderr)
+        return 2
+    print(f"pinned in {db_path}: replays of the seed messages now cost nothing")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="scamshield")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -45,9 +67,13 @@ def main(argv: list[str] | None = None) -> int:
     an.add_argument("--seed-id", help="analyze a seed message by id instead of --body")
     an.add_argument("--no-profile", action="store_true", help="do not load the seed Michiko profile")
     an.add_argument("--json", action="store_true", help="print the full AnalysisResult as JSON")
+    wm = sub.add_parser("warm", help="analyze every seed message and pin the verdicts so they are free to replay")
+    wm.add_argument("--db", help="database to warm (default: SCAMSHIELD_DB)")
     args = ap.parse_args(argv)
 
     settings = Settings.from_env()
+    if args.cmd == "warm":
+        return warm(settings, args.db or settings.db_path)
     store = MemoryStore(":memory:")  # CLI runs are throwaway; the API uses SCAMSHIELD_DB
     profile = load_profile(settings.seed_dir)
     if not args.no_profile:

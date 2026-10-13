@@ -12,7 +12,8 @@ import hashlib
 import re
 import time
 
-from .config import Settings
+from .budget import Budget, BudgetBlocked
+from .config import TAVILY_EXTRACT_CREDITS_PER_URL, Settings
 from .memory import MemoryStore
 from .models import Lookup, SearchHit, Trace, TraceStep
 from .normalize import domain_of, phone_variants
@@ -28,12 +29,15 @@ class EvidenceDesk:
         store: MemoryStore,
         settings: Settings,
         trace: Trace,
+        budget: Budget | None = None,
     ):
         self.client = client
         self.store = store
         self.settings = settings
         self.trace = trace
+        self.budget = budget
         self.live_calls = 0
+        self.extract_calls = 0
 
     @property
     def budget_left(self) -> int:
@@ -51,6 +55,12 @@ class EvidenceDesk:
         if self.budget_left <= 0:
             self._trace(skill, query, start, cost=0.0, detail="skipped: search budget exhausted")
             return [], False, "search budget exhausted"
+        if self.budget:
+            try:
+                self.budget.check_search()
+            except BudgetBlocked as exc:
+                self._trace(skill, query, start, cost=0.0, detail=f"skipped: budget guard ({exc})")
+                return [], False, f"budget guard: {exc}"
         self.live_calls += 1
         try:
             hits = self.client.search(query, topic=topic)
@@ -58,9 +68,46 @@ class EvidenceDesk:
             self._trace(skill, query, start, cost=0.0, detail="search failed", error=str(exc))
             return [], False, f"search failed: {exc}"
         self.store.cache_put(key, [h.model_dump() for h in hits])
-        cost = 0.0 if self.client.offline else self.settings.tavily_cost_per_call
+        cost = 0.0 if self.client.offline else self.settings.tavily_cost_per_call  # basic search = 1 credit
+        if cost and self.budget:
+            self.budget.record("tool", "tavily", cost)
         self._trace(skill, query, start, cost=cost, detail=f"{self.client.name}: {len(hits)} raw results")
         return hits, False, None
+
+    @property
+    def extract_left(self) -> int:
+        return self.settings.max_extract_calls - self.extract_calls
+
+    def extract(self, url: str) -> str:
+        """Page text for one URL that a search returned. At most ``max_extract_calls`` per message (default 1);
+        cached 24h like searches. Returns "" when skipped or failed."""
+        key = hashlib.sha256(f"extract|{url}".encode()).hexdigest()
+        cached = self.store.cache_get(key, self.settings.cache_ttl_seconds)
+        start = time.perf_counter()
+        if cached is not None:
+            text = cached[0]["text"] if cached else ""
+            self._trace("extract", url, start, cost=0.0, detail=f"cache hit, {len(text)} chars")
+            return text
+        if self.extract_left <= 0:
+            return ""
+        if self.budget:
+            try:
+                self.budget.check_search()
+            except BudgetBlocked as exc:
+                self._trace("extract", url, start, cost=0.0, detail=f"skipped: budget guard ({exc})")
+                return ""
+        self.extract_calls += 1
+        try:
+            text = self.client.extract(url)
+        except SearchError as exc:
+            self._trace("extract", url, start, cost=0.0, detail="extract failed", error=str(exc))
+            return ""
+        self.store.cache_put(key, [{"text": text}])
+        cost = 0.0 if self.client.offline else round(self.settings.tavily_cost_per_call * TAVILY_EXTRACT_CREDITS_PER_URL, 6)
+        if cost and self.budget:
+            self.budget.record("tool", "tavily", cost)
+        self._trace("extract", url, start, cost=cost, detail=f"{self.client.name}: {len(text)} chars")
+        return text
 
     def _trace(self, skill: str, query: str, start: float, *, cost: float, detail: str, error: str | None = None):
         self.trace.steps.append(

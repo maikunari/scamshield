@@ -25,6 +25,7 @@ class FakeSearchClient:
     def __init__(self, fixtures: list[dict] | None = None):
         self._fixtures = fixtures or []
         self.calls: list[str] = []
+        self.extract_calls: list[str] = []
 
     @classmethod
     def from_file(cls, path: Path) -> FakeSearchClient:
@@ -40,3 +41,12 @@ class FakeSearchClient:
             if _squash(fx["match"]) in q:
                 hits += [SearchHit(**r) for r in fx["results"]]
         return hits[:max_results]
+
+    def extract(self, url: str, *, max_chars: int = 1500) -> str:
+        """The recorded snippet for that URL, standing in for the page text."""
+        self.extract_calls.append(url)
+        for fx in self._fixtures:
+            for r in fx["results"]:
+                if r["url"] == url:
+                    return " ".join(r.get("content", "").split())[:max_chars]
+        return ""

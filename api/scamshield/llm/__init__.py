@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from ..config import Settings
-from .base import LLMClient, LLMError, LLMRequest, LLMResponse
+from .base import LLMBlocked, LLMClient, LLMError, LLMRequest, LLMResponse
 from .fake import FakeLLMClient
 from .router import ModelRouter
 from .tokenfactory import TokenFactoryClient
 
 __all__ = [
     "FakeLLMClient",
+    "LLMBlocked",
     "LLMClient",
     "LLMError",
     "LLMRequest",

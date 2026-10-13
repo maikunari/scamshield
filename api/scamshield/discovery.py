@@ -7,11 +7,13 @@ from datetime import datetime, timezone
 
 import httpx
 
+from .config import DEFAULT_MODELS, MODEL_PRICES, TIER_ENV, TIERS, model_key, resolve_model_id
+
 TIER_HINTS = [
     ("MODEL_FAST", "Nemotron Nano", re.compile(r"nemotron.*nano|nano.*nemotron", re.I)),
     ("MODEL_MID", "Nemotron Super", re.compile(r"nemotron.*super|super.*nemotron", re.I)),
     ("MODEL_REASON", "Nemotron Ultra", re.compile(r"nemotron.*ultra|ultra.*nemotron", re.I)),
-    ("MODEL_SAFETY", "Nemotron safety/guard", re.compile(r"nemotron.*(safety|guard)|(safety|guard).*nemotron", re.I)),
+    ("MODEL_LONG", "Nemotron 3.5 Lightning", re.compile(r"nemotron.*lightning|lightning.*nemotron", re.I)),
 ]
 
 
@@ -32,6 +34,12 @@ def suggest(models: list[dict]) -> list[tuple[str, str, list[str]]]:
     return [(env, family, [i for i in ids if rx.search(i)]) for env, family, rx in TIER_HINTS]
 
 
+def check_defaults(models: list[dict]) -> list[tuple[str, str, str | None]]:
+    """(env var, default id, the catalog's spelling of it or None). Ids are compared case-insensitively."""
+    ids = [m["id"] for m in models]
+    return [(TIER_ENV[t], DEFAULT_MODELS[t], resolve_model_id(DEFAULT_MODELS[t], ids)) for t in TIERS]
+
+
 def render_markdown(models: list[dict], base_url: str, *, now: datetime | None = None) -> str:
     stamp = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")
     out = [
@@ -46,6 +54,19 @@ def render_markdown(models: list[dict], base_url: str, *, now: datetime | None =
     ]
     for env, family, matches in suggest(models):
         out.append(f"| `{env}` | {family} | {', '.join(f'`{m}`' for m in matches) or '_none listed_'} |")
+    out += [
+        "",
+        "## Defaults in this repo",
+        "",
+        "Compared case-insensitively against the listing (the catalog mixes casing).",
+        "",
+        "| Env var | Default id | Listed as | USD per 1M in / out |",
+        "|---|---|---|---|",
+    ]
+    for env, default, listed in check_defaults(models):
+        price = MODEL_PRICES.get(model_key(default))
+        cost = f"{price[0]:.2f} / {price[1]:.2f}" if price else "?"
+        out.append(f"| `{env}` | `{default}` | {f'`{listed}`' if listed else '**not listed**'} | {cost} |")
     out += ["", f"## All models ({len(models)})", "", "| id | owned_by |", "|---|---|"]
     out += [f"| `{m['id']}` | {m.get('owned_by', '')} |" for m in models]
     out.append("")

@@ -217,4 +217,5 @@ class FakeLLMClient:
             tokens_in=_approx_tokens(request.system + request.user),
             tokens_out=_approx_tokens(out),
             latency_ms=round((time.perf_counter() - start) * 1000, 2),
+            mode="fake",
         )

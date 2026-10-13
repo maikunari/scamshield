@@ -4,23 +4,53 @@ A private scam guard for elderly parents. Built for the Nebius x NVIDIA Global A
 
 A parent pastes or forwards a suspicious text, email or voicemail transcript and gets a verdict: 🟢 Safe, 🟡 Careful or 🔴 Scam. The verdict comes with red flags, evidence links, a safe next step and a calm script the family can use when phoning her. ScamShield never explains paperwork: it outputs only the verdict, the red flags, the evidence and the next safe action.
 
-**Status:** the core pipeline (this repo's first slice) runs end-to-end on the command line. The parent PWA, email intake, family alerts and dashboard are not built yet.
+**Status:** the core pipeline runs end-to-end on the command line and behind a small FastAPI service, with a spend guard and a per-IP rate limit. The parent PWA, email intake, family alerts and dashboard are not built yet.
 
 ## How it works
 
 ```
-normalize -> redact PII -> triage (Nano) -> memory check -> evidence (Super plans, Tavily searches) -> verdict (Ultra) -> persist
+normalize -> verdict cache -> redact PII -> triage (Nano) -> memory check -> evidence (Super plans, Tavily searches) -> verdict (Ultra) -> persist
 ```
 
 1. **Normalize** the raw message into `{channel, sender, body, urls[], phones[], ts}` (phones to E.164).
-2. **Redact** card numbers (Luhn-checked), My Number / SSN-like ids and passwords. Only redacted text reaches a model.
-3. **Triage** (`MODEL_FAST`, Nemotron Nano): scam signals (urgency, money ask, impersonation, secrecy, links) and a risk level.
-4. **Memory**: SQLite per-parent profile of trusted contacts and known services. A message from a trusted contact, or from a known service linking only to its own domain, takes the fast path (🟢, no search, no Ultra call). An unknown sender claiming to be family and asking for money or secrecy is floored at 75; any unknown sender asking for money is floored at 50.
-5. **Evidence** (`MODEL_MID`, Nemotron Super, plans which lookups): up to 3 Tavily searches per message through the skills `check_phone`, `check_url` and `check_phrase`. Results are cached for 24h. The suspicious URL is never fetched, only searched about. A search hit counts as evidence only if it actually mentions the number or domain.
-6. **Verdict** (`MODEL_REASON`, Nemotron Ultra): score 0–100, label, `red_flags[{text, evidence_url}]`, `safe_action`, `family_script`. A red flag can only cite a URL Tavily returned for this message; anything else is stripped. If nothing was found the verdict says "No public reports found." and invents nothing.
-7. **Persist** the result with its trace. 🟢 bodies are dropped (hash and label kept) unless the family opts in.
+2. **Verdict cache**: a repeat of the same message (same sender, text, parent profile and models) is answered from the cache with no model or search call, so the seed messages are free and instant after `make warm`. Degraded or failed runs are never cached.
+3. **Redact** card numbers (Luhn-checked), My Number / SSN-like ids and passwords. Only redacted text reaches a model.
+4. **Triage** (`MODEL_FAST`, Nemotron Nano): scam signals (urgency, money ask, impersonation, secrecy, links) and a risk level.
+5. **Memory**: SQLite per-parent profile of trusted contacts and known services. A message from a trusted contact, or from a known service linking only to its own domain, takes the fast path (🟢, no search, no Ultra call). An unknown sender claiming to be family and asking for money or secrecy is floored at 75; any unknown sender asking for money is floored at 50. A sender or link that imitates a known service's domain (`sakurabank-online.test` vs `sakurabank.example.com`) is floored at 75.
+6. **Evidence** (`MODEL_MID`, Nemotron Super, plans which lookups): up to 3 Tavily searches (plus at most one page extract) per message through the skills `check_phone`, `check_url` and `check_phrase`. Results are cached for 24h. The suspicious URL is never fetched, only searched about. A search hit counts as evidence only if it actually mentions the number or domain.
+7. **Verdict** (`MODEL_REASON`, Nemotron Ultra): score 0–100, label, `red_flags[{text, evidence_url}]`, `safe_action`, `family_script`. A red flag can only cite a URL Tavily returned for this message; anything else is stripped. If nothing was found the verdict says "No public reports found." and invents nothing.
+8. **Persist** the result with its trace. 🟢 bodies are dropped (hash and label kept) unless the family opts in.
 
-Every step writes a trace entry (model, tokens, latency, estimated cost) stored with the result; the dashboard will show it as "How ScamShield decided".
+Every step writes a trace entry (model id, prompt/completion tokens, latency, and cost computed from the listed Token Factory prices) stored with the result; the dashboard will show it as "How ScamShield decided".
+
+### Models and structured output
+
+Defaults are the Nemotron ids from the Token Factory catalog (see [docs/models.md](docs/models.md)): Nano `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` ($0.06 / $0.24 per 1M tokens in / out), Super `nvidia/nemotron-3-super-120b-a12b` ($0.30 / $0.90), Ultra `nvidia/Nemotron-3-Ultra-550b-a55b` ($1.00 / $3.00), and `MODEL_LONG` `nvidia/Nemotron-3_5-Lightning` for a future digest. Model ids are compared case-insensitively because the catalog's casing is inconsistent.
+
+Each model step asks for `response_format: json_schema` (the schema is also repeated in the prompt). A model that rejects it falls back to `json_object`, and a reply that still does not parse gets one repair call. Reasoning/thinking blocks are stripped before parsing. The trace notes when a step did not use plain `json_schema`.
+
+Tavily is called with `search_depth: basic` (1 credit), `topic: news` for phrase lookups, at most 3 searches and at most one `extract` (a page a search returned, never the message's own link) per message.
+
+### Budget guard
+
+`api/scamshield/budget.py` keeps a spend ledger in the same SQLite database and decides a mode before every paid call:
+
+| Mode | When | Effect |
+|---|---|---|
+| `normal` | within all caps | as routed |
+| `degraded` | daily Ultra calls or dollars reached, or 80% of the total cap spent | every model step runs on Nano; searches still run |
+| `exhausted` | total spend cap reached | no paid call; rule-based "could not fully check, ask your family" verdict |
+| `killed` | `BUDGET_KILL_SWITCH=1`, or the file `BUDGET_KILL_FILE` exists | same as exhausted |
+
+Cached verdicts and cached searches are free, so they are served in every mode. `GET /budget` shows the current state; results carry `budget_mode`.
+
+### Analyze endpoint
+
+`POST /parents/{id}/analyze` is limited per client IP (`RATE_LIMIT_PER_MINUTE`, default 10, `429` with `Retry-After`). `X-Forwarded-For` is ignored unless `TRUST_FORWARDED_FOR=1` (set it only behind a proxy you control).
+
+### Skills as tools
+
+`api/scamshield/tools.py` exposes `check_message`, `check_phone`, `check_url`, `check_phrase` and `compare_to_contacts` as plain functions: `Toolbox(pipeline).call(name, arguments)` takes and returns JSON-serialisable dicts, `Toolbox(pipeline).specs()` is the MCP `tools/list` shape, and nothing is global. A stdio MCP server (for Hermes or NemoClaw) is a thin wrapper over those two methods.
 
 ## Setup
 
@@ -40,25 +70,30 @@ make api                  # FastAPI on :8000
 | Variable | Purpose |
 |---|---|
 | `NEBIUS_API_KEY` | Token Factory key. Missing: the LLM client is the offline fake. |
-| `NEBIUS_BASE_URL` | OpenAI-compatible base URL. Default `https://api.tokenfactory.nebius.com/v1/` (**unverified**). |
-| `MODEL_FAST` / `MODEL_MID` / `MODEL_REASON` | Model ids for triage (Nano), query planning (Super), verdict (Ultra). Required when a key is set; pick them from `docs/models.md`. |
+| `NEBIUS_BASE_URL` | OpenAI-compatible base URL. Default `https://api.tokenfactory.nebius.com/v1/`. |
+| `MODEL_FAST` / `MODEL_MID` / `MODEL_REASON` / `MODEL_LONG` | Model ids for triage (Nano), query planning (Super), verdict (Ultra), digest (Lightning, unused so far). Default to the catalog ids in `docs/models.md`. |
 | `TAVILY_API_KEY` | Tavily key. Missing: the search client replays `seed/search_fixtures.json`. |
 | `SCAMSHIELD_OFFLINE=1` | Force both fakes even if keys are set. |
 | `SCAMSHIELD_DB` | SQLite path for the API (default `scamshield.db`). |
 | `SCAMSHIELD_SEED_DIR` | Seed directory (default `seed/`). |
-| `PRICE_<FAST\|MID\|REASON>_IN` / `_OUT` | USD per 1M tokens used for the cost estimate. Defaults are placeholders. |
-| `TAVILY_COST_PER_CALL` | USD per live Tavily search for the cost estimate (default 0.008, placeholder). |
+| `PRICE_<FAST\|MID\|REASON\|LONG>_IN` / `_OUT` | Override the USD per 1M tokens for a tier. Default: the listed price of the model id. |
+| `TAVILY_COST_PER_CALL` | USD per Tavily credit for the cost estimate (default 0.008; an extract is 1/5 of that). |
+| `BUDGET_DAILY_ULTRA_CALLS` / `BUDGET_DAILY_ULTRA_USD` | Daily Ultra caps; past either, Nano-only (defaults 300 / 10.0). |
+| `BUDGET_TOTAL_USD` | Total spend cap (default 40.0); Nano-only from 80%, no paid calls at 100%. |
+| `BUDGET_KILL_SWITCH` / `BUDGET_KILL_FILE` | `1`, or a path whose existence turns the kill switch on. |
+| `RATE_LIMIT_PER_MINUTE` / `TRUST_FORWARDED_FOR` | Per-IP limit on analyze (0 disables); trust `X-Forwarded-For` behind a proxy. |
 
-### Discover models
+### Discover models and smoke-test the real services
 
-Once the key exists:
+Once the keys exist:
 
 ```bash
-NEBIUS_API_KEY=... make models      # GET {NEBIUS_BASE_URL}/models -> docs/models.md
-export MODEL_FAST=... MODEL_MID=... MODEL_REASON=...
+NEBIUS_API_KEY=... make models      # GET {NEBIUS_BASE_URL}/models -> docs/models.md; warns if a default id is not listed
+NEBIUS_API_KEY=... TAVILY_API_KEY=... make smoke
+make warm                           # analyze the seed set once and pin the verdicts in SCAMSHIELD_DB
 ```
 
-`docs/models.md` lists every model and the Nemotron Nano / Super / Ultra candidates by name. It is a placeholder until that is run.
+`make smoke` (`scripts/smoke.py`) checks that the default ids are listed (case-insensitive), that Nano, Super and Ultra each honour `response_format: json_schema` with no fallback, and runs seed message `m02` end to end (triage, plan, a live Tavily search, verdict) on a throwaway database, then prints PASS/FAIL per check and the trace. It exits 2 without both keys and costs a few cents. Findings for the hackathon's feedback section go in [docs/feedback.md](docs/feedback.md).
 
 ## Offline mode
 
@@ -77,26 +112,26 @@ Offline fakes (the model-backed numbers will replace these once keys are availab
 
 | class | precision | recall | F1 | support |
 |---|---|---|---|---|
-| 🔴 scam | 1.00 | 0.93 | 0.97 | 15 |
-| 🟡 careful | 0.75 | 1.00 | 0.86 | 3 |
+| 🔴 scam | 1.00 | 1.00 | 1.00 | 15 |
+| 🟡 careful | 1.00 | 1.00 | 1.00 | 3 |
 | 🟢 safe | 1.00 | 1.00 | 1.00 | 8 |
-| **accuracy** | | | **0.96** | 26 |
+| **accuracy** | | | **1.00** | 26 |
 
-The one miss is `m15`, a phishing "statement is ready" email from a look-alike bank domain that the keyword fake scores 🟡. `python scripts/eval.py --markdown` prints just the table; `--fail-on-red-as-green` exits non-zero if any scam is called safe.
+`m15` (a phishing "statement is ready" email from the look-alike domain `sakurabank-online.test`) used to score 🟡. That was a gap in the rules, not just in the fake: the memory step now flags a sender or link whose host contains a known service's brand label (`sakurabank`) without being its domain, and a guardrail floors such a message at 75 whatever the model says. These numbers measure the keyword fake and the rules around it, not Nemotron. `python scripts/eval.py --markdown` prints just the table; `--fail-on-red-as-green` exits non-zero if any scam is called safe.
 
 ## Privacy
 
 - Message text is PII-redacted before any model call; Tavily queries contain only phone numbers, domains and a short redacted phrase from the message.
 - Model calls go only to the configured Token Factory base URL and searches only to `api.tavily.com`. Nothing else is contacted, and suspicious links are never opened.
-- Data stays in your own SQLite database.
+- Data stays in your own SQLite database. The verdict cache stores the same thing as the analyses table: a 🟢 body is dropped unless the family opted in.
 
 ## Layout
 
 ```
 api/        Python 3.12 FastAPI core API (uv, pytest, Dockerfile)
-scripts/    discover_models.py, eval.py
+scripts/    discover_models.py, eval.py, smoke.py
 seed/       messages.jsonl, expected.json, profile.json, search_fixtures.json
-docs/       models.md
+docs/       models.md, feedback.md
 web/        (later) Next.js frontend
 ```
 
