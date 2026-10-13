@@ -1,0 +1,22 @@
+# `docker compose up --build` -> http://localhost:8000/check/ (PWA) and /api/check (API) in one container.
+# Without NEBIUS_API_KEY / TAVILY_API_KEY in the environment it runs on the offline fakes.
+services:
+  scamshield:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      NEBIUS_API_KEY: ${NEBIUS_API_KEY:-}
+      NEBIUS_BASE_URL: ${NEBIUS_BASE_URL:-}
+      MODEL_FAST: ${MODEL_FAST:-}
+      MODEL_MID: ${MODEL_MID:-}
+      MODEL_REASON: ${MODEL_REASON:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      SCAMSHIELD_OFFLINE: ${SCAMSHIELD_OFFLINE:-}
+    volumes:
+      - scamshield-data:/data
+
+volumes:
+  scamshield-data:

@@ -4,7 +4,7 @@ A private scam guard for elderly parents. Built for the Nebius x NVIDIA Global A
 
 A parent pastes or forwards a suspicious text, email or voicemail transcript and gets a verdict: 🟢 Safe, 🟡 Careful or 🔴 Scam. The verdict comes with red flags, evidence links, a safe next step and a calm script the family can use when phoning her. ScamShield never explains paperwork: it outputs only the verdict, the red flags, the evidence and the next safe action.
 
-**Status:** the core pipeline runs end-to-end on the command line and behind a small FastAPI service, with a spend guard and a per-IP rate limit. The parent PWA, email intake, family alerts and dashboard are not built yet.
+**Status:** the core pipeline runs end-to-end on the command line and behind a small FastAPI service, with a spend guard and a per-IP rate limit, and the parent `/check` PWA (paste, share, three examples, full-screen verdict with read-aloud) runs against it. Email intake, family alerts, the dashboard and deployment are not built yet.
 
 ## How it works
 
@@ -46,7 +46,7 @@ Cached verdicts and cached searches are free, so they are served in every mode. 
 
 ### Analyze endpoint
 
-`POST /parents/{id}/analyze` is limited per client IP (`RATE_LIMIT_PER_MINUTE`, default 10, `429` with `Retry-After`). `X-Forwarded-For` is ignored unless `TRUST_FORWARDED_FOR=1` (set it only behind a proxy you control).
+`POST /parents/{id}/analyze` and `POST /api/check` are limited per client IP (`RATE_LIMIT_PER_MINUTE`, default 10, `429` with `Retry-After`). `X-Forwarded-For` is ignored unless `TRUST_FORWARDED_FOR=1` (set it only behind a proxy you control).
 
 ### Skills as tools
 
@@ -65,6 +65,32 @@ uv run --project api scamshield analyze --sender 212-555-0142 --body "Grandma it
 make api                  # FastAPI on :8000
 ```
 
+### Parent PWA (`web/`)
+
+Requires Node 20.9+.
+
+```bash
+make web-setup            # npm install
+make dev                  # API on :8000 + Next.js dev server on :3000 (proxies /api/*); open http://localhost:3000/check/
+make serve                # build the static export, then serve it *and* the API from FastAPI on :8000
+make docker               # the same, in one container (docker compose up --build)
+```
+
+`/check` is the parent's whole product: a paste box, one big **Check this message** button, three "Try an example"
+buttons (grandchild-in-trouble, parcel redelivery fee, and the real grandson from a trusted number), and a
+full-screen 🔴 / 🟡 / 🟢 verdict with the top red flags, evidence links, the safe next step and a **Read this to me**
+button (browser speech API). It is an installable PWA; on Android the installed app is a **share target**, so
+"Share → ScamShield" from the messaging app opens `/check/?text=…` and checks the message straight away.
+
+Design notes: the type is Atkinson Hyperlegible Next (Braille Institute, OFL) at 22px base with 76px+ tap targets;
+colour is never the only signal (icon + word on every verdict); `prefers-reduced-motion` turns the animations off.
+There are no third-party assets or trademarks; the icon is an original shield mark.
+
+`POST /api/check` takes `{body, sender?, channel?, subject?}` and returns only what the parent screen shows:
+`{label, score, red_flags[{text, evidence_url}], safe_action, evidence_note, contact, family{name}, offline, budget_mode}`.
+The family call script and the trace stay on the family side (`GET /results/{id}`). The endpoint analyses for the
+demo parent (`SCAMSHIELD_DEMO_PARENT`, default `michiko`) and loads her seed profile into the database on first use.
+
 ### Environment variables
 
 | Variable | Purpose |
@@ -76,6 +102,9 @@ make api                  # FastAPI on :8000
 | `SCAMSHIELD_OFFLINE=1` | Force both fakes even if keys are set. |
 | `SCAMSHIELD_DB` | SQLite path for the API (default `scamshield.db`). |
 | `SCAMSHIELD_SEED_DIR` | Seed directory (default `seed/`). |
+| `SCAMSHIELD_DEMO_PARENT` | Parent id that `POST /api/check` analyses for (default `michiko`, seeded from `seed/profile.json`). |
+| `SCAMSHIELD_WEB_DIR` | Next.js static export to serve at `/` (default `web/out`; skipped when absent). |
+| `SCAMSHIELD_API_ORIGIN` | Dev only: where `next dev` proxies `/api/*` (default `http://127.0.0.1:8000`). |
 | `PRICE_<FAST\|MID\|REASON\|LONG>_IN` / `_OUT` | Override the USD per 1M tokens for a tier. Default: the listed price of the model id. |
 | `TAVILY_COST_PER_CALL` | USD per Tavily credit for the cost estimate (default 0.008; an extract is 1/5 of that). |
 | `BUDGET_DAILY_ULTRA_CALLS` / `BUDGET_DAILY_ULTRA_USD` | Daily Ultra caps; past either, Nano-only (defaults 300 / 10.0). |
@@ -129,13 +158,14 @@ Offline fakes (the model-backed numbers will replace these once keys are availab
 
 ```
 api/        Python 3.12 FastAPI core API (uv, pytest, Dockerfile)
-scripts/    discover_models.py, eval.py, smoke.py
+web/        Next.js 16 static export: the parent /check PWA (app/, components/, lib/, public/manifest + sw.js)
+scripts/    discover_models.py, eval.py, smoke.py, dev.sh
 seed/       messages.jsonl, expected.json, profile.json, search_fixtures.json
 docs/       models.md, feedback.md
-web/        (later) Next.js frontend
 ```
 
-The Dockerfile builds from the repo root: `docker build -f api/Dockerfile -t scamshield-api .` (not yet built in CI; untested).
+The Dockerfile builds from the repo root and produces one image that serves the PWA and the API:
+`docker build -f api/Dockerfile -t scamshield .` (or `docker compose up --build`).
 
 ## License
 
