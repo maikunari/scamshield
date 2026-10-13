@@ -30,3 +30,14 @@ export async function checkMessage(req: CheckRequest, signal?: AbortSignal): Pro
     clearTimeout(timer);
   }
 }
+
+/** Delete everything stored for this person: messages, answers, family alerts and what ScamShield remembers. */
+export async function deleteMyData(signal?: AbortSignal): Promise<void> {
+  try {
+    const res = await fetch("/api/my-data?confirm=yes", { method: "DELETE", signal });
+    if (!res.ok) throw new CheckError(`ScamShield answered ${res.status}`, res.status);
+  } catch (err) {
+    if (err instanceof CheckError) throw err;
+    throw new CheckError(err instanceof Error ? err.message : "network error");
+  }
+}

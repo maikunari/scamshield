@@ -272,6 +272,89 @@ class MemoryStore:
             ).fetchone()
         return int(row[0]), float(row[1])
 
+    # --- privacy: export, delete, retention -----------------------------------------------------
+    # The spend ledger is never touched here: it holds no PII and the budget caps depend on it.
+    def analyses_for_parent(self, parent_id: str) -> list[AnalysisResult]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT result_json FROM analyses WHERE parent_id=? ORDER BY created_at, rowid", (parent_id,)
+            ).fetchall()
+        return [AnalysisResult.model_validate_json(r["result_json"]) for r in rows]
+
+    def telegram_links_for_parent(self, parent_id: str) -> list[dict]:
+        """Which family contacts have a linked Telegram chat. Chat ids and unused codes stay out of the export."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT contact, created_at, chat_id IS NOT NULL AS linked FROM telegram_links "
+                "WHERE parent_id=? ORDER BY created_at",
+                (parent_id,),
+            ).fetchall()
+        return [{"contact": r["contact"], "created_at": r["created_at"], "linked": bool(r["linked"])} for r in rows]
+
+    def _delete_alerts(self, where: str, args: tuple) -> int:
+        ids = [r[0] for r in self._db.execute(f"SELECT id FROM alerts WHERE {where}", args)]
+        for chunk in range(0, len(ids), 500):
+            part = ids[chunk : chunk + 500]
+            marks = ",".join("?" * len(part))
+            self._db.execute(f"DELETE FROM alert_deliveries WHERE alert_id IN ({marks})", part)
+            self._db.execute(f"DELETE FROM alerts WHERE id IN ({marks})", part)
+        return len(ids)
+
+    def delete_parent_data(self, parent_id: str) -> dict[str, int]:
+        """Delete everything stored for one parent: profile (memory), checks with their traces, verdict-cache copies,
+        alerts and deliveries, Telegram links. The search cache (queries hold phone numbers and domains from
+        messages) is emptied too. Returns what was removed."""
+        with self._lock, self._db:
+            counts = {
+                "checks": self._db.execute("DELETE FROM analyses WHERE parent_id=?", (parent_id,)).rowcount,
+                "verdict_cache": self._db.execute(
+                    "DELETE FROM verdict_cache WHERE json_extract(result_json, '$.parent_id')=?", (parent_id,)
+                ).rowcount,
+            }
+            counts["alerts"] = self._delete_alerts("parent_id=?", (parent_id,))
+            counts["telegram_links"] = self._db.execute(
+                "DELETE FROM telegram_links WHERE parent_id=?", (parent_id,)
+            ).rowcount
+            counts["profile"] = self._db.execute("DELETE FROM parents WHERE id=?", (parent_id,)).rowcount
+            counts["search_cache"] = self._db.execute("DELETE FROM search_cache").rowcount
+        return counts
+
+    def delete_analysis(self, parent_id: str, analysis_id: str) -> bool:
+        """Delete one check and what was made from it: its alert and deliveries, and any verdict-cache entry for the
+        same message (otherwise a repeat would replay the deleted text). False when the parent has no such check."""
+        with self._lock, self._db:
+            row = self._db.execute(
+                "SELECT body_hash FROM analyses WHERE id=? AND parent_id=?", (analysis_id, parent_id)
+            ).fetchone()
+            if not row:
+                return False
+            self._db.execute("DELETE FROM analyses WHERE id=?", (analysis_id,))
+            self._delete_alerts("analysis_id=?", (analysis_id,))
+            cached = self._db.execute(
+                "SELECT key, result_json FROM verdict_cache WHERE json_extract(result_json, '$.parent_id')=?",
+                (parent_id,),
+            ).fetchall()
+            for c in cached:
+                result = AnalysisResult.model_validate_json(c["result_json"])
+                if result.id == analysis_id or hashlib.sha256(result.message.body.encode()).hexdigest() == row["body_hash"]:
+                    self._db.execute("DELETE FROM verdict_cache WHERE key=?", (c["key"],))
+        return True
+
+    def purge_older_than(self, cutoff: datetime) -> dict[str, int]:
+        """Retention: delete checks, alerts and unpinned cached verdicts created before ``cutoff``. Profiles,
+        Telegram links and the spend ledger stay."""
+        stamp = cutoff.isoformat()
+        with self._lock, self._db:
+            counts = {
+                "checks": self._db.execute("DELETE FROM analyses WHERE created_at<?", (stamp,)).rowcount,
+                "verdict_cache": self._db.execute(
+                    "DELETE FROM verdict_cache WHERE pinned=0 AND created_at<?", (stamp,)
+                ).rowcount,
+                "search_cache": self._db.execute("DELETE FROM search_cache WHERE created_at<?", (stamp,)).rowcount,
+            }
+            counts["alerts"] = self._delete_alerts("created_at<?", (stamp,))
+        return counts
+
     # --- family alerts --------------------------------------------------------------------------
     def alert_create(self, alert_id: str, parent_id: str, analysis_id: str, body_hash: str, token: str) -> tuple[str, bool]:
         """Insert the alert row. Returns (id, created): a parent gets one alert per message, so a repeat returns

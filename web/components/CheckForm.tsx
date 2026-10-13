@@ -111,6 +111,11 @@ export function CheckForm({ body, sender, busy, error, onBodyChange, onSenderCha
         <LockIcon />
         <span>Only ScamShield sees what you paste. Card numbers are hidden before checking, and links in the message are never opened.</span>
       </p>
+
+      <nav className="footer-links" aria-label="Privacy">
+        <a href="/privacy/">How your privacy is protected</a>
+        <a href="/delete/">Delete my data</a>
+      </nav>
     </main>
   );
 }
