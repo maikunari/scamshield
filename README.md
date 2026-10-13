@@ -91,6 +91,17 @@ There are no third-party assets or trademarks; the icon is an original shield ma
 The family call script and the trace stay on the family side (`GET /results/{id}`). The endpoint analyses for the
 demo parent (`SCAMSHIELD_DEMO_PARENT`, default `michiko`) and loads her seed profile into the database on first use.
 
+### Family alerts
+
+A 🔴 result from `/api/check` (or `/parents/{id}/analyze`) alerts the parent's family contacts: the trusted contacts whose relationship is `son`, `daughter` or `child`. 🟡 is not alerted (the spec batches it into a digest, a later slice). Each alert carries the verdict, the top three red flags with their evidence links, the suggested call script and a link back to the check, on every channel that contact has:
+
+- **Telegram**: `sendMessage` through the Bot API with an inline **I called her** button; the callback reaches `POST /api/telegram/webhook` and marks the alert acknowledged. The webhook is registered with `setWebhook` at startup only when `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` and an `https` `PUBLIC_BASE_URL` are all set.
+- **Email**: Resend (`POST https://api.resend.com/emails`) with HTML and plain text, and an **I called her** link (`/api/alerts/{id}/ack?t=...`). The link opens a confirm button rather than acknowledging on load, so a mail scanner that prefetches links cannot mark an unmade call as made.
+
+A channel without credentials does not fail: the alert is stored as it would have been sent (`status: recorded`, with the payload), and `GET /parents/{id}/alerts` shows every alert, its deliveries and whether it was acknowledged. `family.notified` on the `/api/check` response is true only when something really went out. One alert is made per message per parent, and a family contact is capped at `ALERT_MAX_PER_CONTACT_PER_HOUR`.
+
+**Linking a family member's Telegram** (demo flow): `POST /parents/michiko/telegram-link` with `{"contact": "Kenji Hayashi"}` returns `{"url": "https://t.me/<bot>?start=<code>"}`. The family member opens it, taps Start, and the webhook stores their chat id. Codes are single use and valid for 7 days. Until a contact has linked, Telegram is skipped for them and email still goes out. Like the other `/parents/...` routes, these are unauthenticated for now; the family dashboard slice puts the passphrase gate in front of them.
+
 ### Environment variables
 
 | Variable | Purpose |
@@ -111,6 +122,11 @@ demo parent (`SCAMSHIELD_DEMO_PARENT`, default `michiko`) and loads her seed pro
 | `BUDGET_TOTAL_USD` | Total spend cap (default 40.0); Nano-only from 80%, no paid calls at 100%. |
 | `BUDGET_KILL_SWITCH` / `BUDGET_KILL_FILE` | `1`, or a path whose existence turns the kill switch on. |
 | `RATE_LIMIT_PER_MINUTE` / `TRUST_FORWARDED_FOR` | Per-IP limit on analyze (0 disables); trust `X-Forwarded-For` behind a proxy. |
+| `TELEGRAM_BOT_TOKEN` | Family alerts on Telegram (Bot API). Missing: Telegram alerts are recorded, not sent. |
+| `TELEGRAM_WEBHOOK_SECRET` | Secret the webhook must present (`X-Telegram-Bot-Api-Secret-Token`). Required for the webhook to accept anything. |
+| `RESEND_API_KEY` / `ALERT_EMAIL_FROM` | Family alerts by email through Resend; `ALERT_EMAIL_FROM` is a sender Resend has verified (`Name <alerts@your-domain>`). Either missing: email alerts are recorded, not sent. |
+| `PUBLIC_BASE_URL` | Public origin of this app (`https://...`, no trailing slash). Used for the "see the check" and email "I called her" links and for `setWebhook`; without it those links are left out. |
+| `ALERT_MAX_PER_CONTACT_PER_HOUR` | Alerts one family contact can receive per hour (default 5, 0 disables); the rest are recorded as `rate_limited`. |
 
 ### Discover models and smoke-test the real services
 

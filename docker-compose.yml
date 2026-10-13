@@ -15,6 +15,13 @@ services:
       MODEL_REASON: ${MODEL_REASON:-}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       SCAMSHIELD_OFFLINE: ${SCAMSHIELD_OFFLINE:-}
+      # Family alerts; a channel left empty records the alert instead of sending it.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      ALERT_MAX_PER_CONTACT_PER_HOUR: ${ALERT_MAX_PER_CONTACT_PER_HOUR:-}
     volumes:
       - scamshield-data:/data
 

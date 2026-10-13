@@ -20,6 +20,7 @@ def client(monkeypatch, tmp_path):
 def _reset():
     main.get_pipeline.cache_clear()
     main.get_limiter.cache_clear()
+    main.get_alerts.cache_clear()
 
 
 def test_health_reports_offline(client):
