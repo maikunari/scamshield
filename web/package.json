@@ -8,6 +8,7 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "typecheck": "tsc --noEmit",
+    "test": "node --test \"lib/**/*.test.ts\"",
     "serve": "npx --yes serve out"
   },
   "dependencies": {

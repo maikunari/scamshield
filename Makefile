@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: setup test eval eval-md models smoke warm api web-setup web-build web-dev dev serve docker
+.PHONY: setup test eval eval-md models smoke warm api web-setup web-build web-test web-dev dev serve docker
 setup:
 	$(UV) sync --project api
 test:
@@ -19,6 +19,8 @@ api:
 	$(UV) run --project api uvicorn scamshield.main:app --reload --port 8000
 web-setup:
 	cd web && npm install --no-audit --no-fund
+web-test:
+	cd web && npm test
 web-build:
 	cd web && npm run build
 web-dev:

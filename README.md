@@ -4,12 +4,14 @@ A private scam guard for elderly parents. Built for the Nebius x NVIDIA Global A
 
 A parent pastes or forwards a suspicious text, email or voicemail transcript and gets a verdict: 🟢 Safe, 🟡 Careful or 🔴 Scam. The verdict comes with red flags, evidence links, a safe next step and a calm script the family can use when phoning her. ScamShield never explains paperwork: it outputs only the verdict, the red flags, the evidence and the next safe action.
 
-**Status:** the core pipeline runs end-to-end on the command line and behind a small FastAPI service, with a spend guard and a per-IP rate limit, and the parent `/check` PWA (paste, share, three examples, full-screen verdict with read-aloud) runs against it. Email intake, family alerts, the dashboard and deployment are not built yet.
+**Status:** built and live at <https://scamshield.sonicpixel.io>. The core pipeline runs end-to-end behind a FastAPI service with a spend guard and a per-IP rate limit; the parent `/check` PWA (paste, share, three examples, full-screen verdict with read-aloud), family alerts (Telegram and Resend email on 🔴, with the "I called her" acknowledgement), the passphrase-gated family dashboard, privacy controls and the one-click demo family are all working. **Not built:** forward-to-email intake, the nightly job and the weekly digest.
+
+**Where it runs.** The app (the FastAPI API and the static PWA from one app) is hosted on a DigitalOcean droplet. It is not hosted on Nebius; only inference is: every Nemotron call goes to the Nebius Token Factory API. The reason is cost, see [docs/feedback.md](docs/feedback.md) item 4.
 
 ## Judge in 60 seconds
 
-1. Open the app URL (`/`) and tap **Load demo family**. It resets the demo family: Michiko, her son Kenji and grandson Taro as trusted contacts, and five past checks including a scam that alerted Kenji.
-2. Open `/check/` and tap an example, for instance **“Grandma, I'm in trouble”**. It turns red: "Kenji has been told."
+1. Open <https://scamshield.sonicpixel.io/>. The landing page explains both sides of the app. Tap **Load demo family** (under "Judging this?"). It resets the demo family: Michiko, her son Kenji and grandson Taro as trusted contacts, and five past checks including a scam that alerted Kenji.
+2. Open `/check/` (the landing page's **For the parent** button) and tap an example, for instance **“Grandma, I'm in trouble”**. It turns red. The screen says "Kenji has been told" only when the alert really went out (Telegram or email delivered); if it was rate-limited, de-duplicated or could not be sent, it says "Tell someone in your family." instead. A live check takes roughly 15-30 s; a repeat of the same message is answered from the cache at once.
 3. Open `/family/`, tap **Open as the demo family** (the passphrase is `scamshield-demo`). The newest check is yours: see the alert that went out and **How ScamShield decided**, the stored trace with each step's Nemotron model, tokens, latency and cost.
 
 Past checks marked *Sample* ship with the demo family; their model ids are real but their token counts and timings are illustrative. Your own check carries a measured trace.
@@ -29,7 +31,7 @@ normalize -> verdict cache -> redact PII -> triage (Nano) -> memory check -> evi
 7. **Verdict** (`MODEL_REASON`, Nemotron Ultra): score 0–100, label, `red_flags[{text, evidence_url}]`, `safe_action`, `family_script`. A red flag can only cite a URL Tavily returned for this message; anything else is stripped. If nothing was found the verdict says "No public reports found." and invents nothing.
 8. **Persist** the result with its trace. 🟢 bodies are dropped (hash and label kept) unless the family opts in.
 
-Every step writes a trace entry (model id, prompt/completion tokens, latency, and cost computed from the listed Token Factory prices) stored with the result; the dashboard will show it as "How ScamShield decided".
+Every step writes a trace entry (model id, prompt/completion tokens, latency, and cost computed from the listed Token Factory prices) stored with the result; the dashboard shows it as "How ScamShield decided".
 
 ### Models and structured output
 
@@ -79,6 +81,7 @@ Requires Node 20.9+.
 
 ```bash
 make web-setup            # npm install
+make web-test             # node --test over web/lib (verdict screen copy)
 make dev                  # API on :8000 + Next.js dev server on :3000 (proxies /api/*); open http://localhost:3000/check/
 make serve                # build the static export, then serve it *and* the API from FastAPI on :8000
 make docker               # the same, in one container (docker compose up --build)
@@ -178,7 +181,7 @@ Results are marked `offline: true` and the CLI prints `[offline fakes]`.
 
 `scripts/eval.py` runs the 26 seed messages (`seed/messages.jsonl`) through the pipeline with the Michiko profile (`seed/profile.json`) and compares the label to the gold labels in `seed/expected.json`. The seed mixes ten scam patterns, three Japanese variants (オレオレ詐欺, delivery SMS, ATM refund), an unknown-number "grandson" message next to the real grandson's, and safe look-alikes (bank statement, pharmacy, clinic, shop order). All numbers use reserved or invalid ranges (`212-555-01xx`, `090-0000-xxxx`) and all links are example.com / `.test` hosts.
 
-Offline fakes (the model-backed numbers will replace these once keys are available):
+Two runs of the same 26 messages and gold labels. **Offline fakes** (keyword heuristics, not a measure of model quality):
 
 | class | precision | recall | F1 | support |
 |---|---|---|---|---|
@@ -187,7 +190,11 @@ Offline fakes (the model-backed numbers will replace these once keys are availab
 | 🟢 safe | 1.00 | 1.00 | 1.00 | 8 |
 | **accuracy** | | | **1.00** | 26 |
 
-`m15` (a phishing "statement is ready" email from the look-alike domain `sakurabank-online.test`) used to score 🟡. That was a gap in the rules, not just in the fake: the memory step now flags a sender or link whose host contains a known service's brand label (`sakurabank`) without being its domain, and a guardrail floors such a message at 75 whatever the model says. These numbers measure the keyword fake and the rules around it, not Nemotron. `python scripts/eval.py --markdown` prints just the table; `--fail-on-red-as-green` exits non-zero if any scam is called safe.
+**Live models** (run once on 2026-10-14: Nemotron Nano, Super and Ultra on Token Factory, real Tavily searches, the Michiko profile, a fresh in-memory database so nothing was cached and no family alert was sent): **26/26 labels correct (accuracy 1.00)**, confusion matrix diagonal 15 / 3 / 8, no 🔴 called 🟢. Per class precision, recall and F1 are all 1.00, the same table as above. Cost: 62 model calls, 107k tokens, about **$0.12 of model spend** (Nano $0.006, Super $0.008, Ultra $0.106) plus 49 Tavily searches at an assumed $0.008 each (~$0.30, the estimate in `TAVILY_COST_PER_CALL`), about $0.42 for the whole run.
+
+How to read it: it is a 26-message set we wrote and tuned the rules against, so 26/26 shows the pipeline is wired and the rules plus models agree with the gold labels, not a general accuracy claim. The eight 🟢 messages never reached Ultra: the memory step passed them (trusted contact, known service on its own domain, or no risk signals) after Nano triage. The 18 🔴/🟡 messages ran Nano, Super and Ultra. The `scam_type` agreement on gold 🔴 was only 2/15 because Nano returns free-text type names (`gift_card_scams`, `electric_shutoff`) that do not match the gold vocabulary; that field is informational and does not drive the label. Latency is in [docs/feedback.md](docs/feedback.md): a full live check took a median of about 24 s of summed step time in this run (Nano is the slow step).
+
+`m15` (a phishing "statement is ready" email from the look-alike domain `sakurabank-online.test`) used to score 🟡. That was a gap in the rules, not just in the fake: the memory step now flags a sender or link whose host contains a known service's brand label (`sakurabank`) without being its domain, and a guardrail floors such a message at 75 whatever the model says. The offline numbers measure the keyword fake and the rules around it, not Nemotron. `python scripts/eval.py --markdown` prints just the table (live when `NEBIUS_API_KEY` and `TAVILY_API_KEY` are set, offline otherwise; `run_eval` uses an in-memory store and never dispatches family alerts); `--fail-on-red-as-green` exits non-zero if any scam is called safe.
 
 ## Privacy
 

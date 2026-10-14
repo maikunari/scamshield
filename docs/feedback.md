@@ -2,7 +2,7 @@
 
 Raw material for the hackathon's feedback section. Everything under "Collected" was found while building ScamShield
 and checking the public docs on 2026-10-13 (sources are linked per item). Each item has a repro and a suggested fix.
-"To collect" lists what only a live key can answer; the smoke script (`make smoke`) and `make models` produce most of it.
+"Measured on the live keys" is what a small run on 2026-10-14 answered (`make models`, `make smoke`, one raw-HTTP probe of each tier, and the 26-message live eval).
 
 ## Collected
 
@@ -75,14 +75,70 @@ and checking the public docs on 2026-10-13 (sources are linked per item). Each i
 - **Suggested fix.** A cookie- or signed-URL-based auth mode for browser clients, and built-in per-IP rate limiting for
   public endpoints, since the alternative is an open VM.
 
-## To collect once the keys exist
+## Measured on the live keys (2026-10-14)
 
-These need `NEBIUS_API_KEY` (and `TAVILY_API_KEY` for the second). Run `make models` then `make smoke` and record the answers here.
+Sources: `make models`, `make smoke`, one raw `chat/completions` call per tier, a 130-request burst, and the 26-message live
+eval (62 model calls, traces stored per step). Small samples, one account, one day: treat as observations, not benchmarks.
 
-- [ ] Does `GET /v1/models` return the same ids and casing as `model-catalog.md`? Does it include prices, context length or capability flags?
-- [ ] Does each of Nano, Super and Ultra honour `response_format: json_schema` (strict)? The smoke script prints PASS/FAIL per model with the error message.
-- [ ] What does a failed `json_schema` request return (status, body), and is the error code stable enough to branch on?
-- [ ] Do the Nemotron models return reasoning in `message.reasoning_content`, inline in `content` (`<think>` blocks, or only a closing tag), or not at all? `strip_reasoning` handles all three; note which one occurs and how many extra completion tokens it costs on Ultra.
-- [ ] Is `usage.prompt_tokens` / `completion_tokens` always present, and does it include reasoning tokens?
-- [ ] Observed latency (p50 and p95) per tier from the trace column, against the prices in `docs/models.md`.
-- [ ] What happens at the 60 RPM baseline: status code, `Retry-After` or rate-limit headers?
+### 7. `GET /v1/models` is a bare id list, and a mistyped id is a hard 404
+
+- **Observed.** 25 models; the NVIDIA ids and their casing match `model-catalog.md` exactly. Each entry has only `id`,
+  `object`, `created`, `owned_by` (always `system`): no price, context length or capability flags. A lower-case
+  `nvidia/nemotron-3-ultra-550b-a55b` returns `404 {"detail":"The model ... does not exist."}`, so item 1's casing problem
+  is real, not theoretical. The `model` field of a successful reply echoes the canonical id.
+- **Suggested fix.** As in item 2: capability and price fields in `/models`, and case-insensitive id matching.
+
+### 8. `response_format: json_schema` works on Nano, Super and Ultra, and the errors are not uniform
+
+- **Observed.** All three honoured `json_schema` (strict) with no fallback needed: `make smoke` passes for each, and in
+  the live eval none of the 62 model steps noted a `json_object` fallback or a repair call.
+- **Shape is guaranteed, content is not.** In one temperature-0 probe on a plainly scammy message with the schema
+  `{label, why}`, Nano returned `"label": "green"` while its `why` text said it exhibits classic scam characteristics,
+  and Super returned `"why": ""`. Strict mode fixed the structure, not the judgement, so ScamShield validates and
+  guardrails the result in code and does not trust a single field. (One sample each; not a claim about the models in general.)
+- **Failure shapes differ by layer.** An invalid schema returns `400 {"error":{"message":"Grammar error: Invalid type:
+  nonsense","type":"BadRequestError","code":400},"detail":"..."}`. An unsupported `response_format.type` returns `422` with a
+  FastAPI-style list, `{"detail":[{"type":"literal_error","loc":[...],"msg":"Input should be 'text', 'json_object' or
+  'json_schema'"}]}`. An unknown model returns `404 {"detail":"..."}`. Three bodies, two JSON shapes, so a client can only
+  branch on the status code. We fall back on 400/422.
+- **Suggested fix.** One error envelope with a stable machine-readable `code` (for example `unsupported_response_format`).
+
+### 9. Reasoning arrives in a separate field, differently named per model, and is billed as completion tokens
+
+- **Observed.** No `<think>` tags appeared in `content` on any tier; it was clean JSON. The reasoning is in
+  `message.reasoning` on Nano, in both `message.reasoning` and `message.reasoning_content` on Super, and in
+  `message.reasoning_content` only on Ultra. `strip_reasoning` is still there as a guard but was not needed.
+- **Usage.** `usage.prompt_tokens` and `completion_tokens` were present on every call. Reasoning is included in
+  `completion_tokens`: in the probe, Super used 54 reasoning tokens of 69 and Ultra 114 of 238
+  (`completion_tokens_details.reasoning_tokens`); Nano reports `completion_tokens_details: null`, so its reasoning cannot be
+  separated. Nano wrote a median of 831 completion tokens for a triage reply that is a few lines of JSON, which is most of why Nano
+  is the slowest step below.
+- **Suggested fix.** One reasoning field name across the NVIDIA models, `reasoning_tokens` on Nano too, and a documented
+  request flag to cap or disable reasoning when the caller only wants the structured answer.
+
+### 10. Latency (26-message eval, steps run one after another)
+
+| step | calls | p50 | p95 | max | tokens in / out | cost |
+|---|---|---|---|---|---|---|
+| Nano triage | 26 | 11.7 s | 47.1 s | 140.0 s | 15.8k / 22.1k | $0.006 |
+| Super plan | 18 | 2.3 s | 3.2 s | 3.5 s | 8.3k / 6.0k | $0.008 |
+| Ultra verdict | 18 | 4.9 s | 5.8 s | 6.0 s | 29.1k / 25.8k | $0.106 |
+| Tavily search or extract | 49 | 1.6 s | 3.1 s | | | ~$0.30 |
+
+- Per message, summed step time: p50 24 s, p95 58 s. The eight 🟢 messages stop after Nano; the other 18 run all three tiers.
+- **The surprise is Nano, not Ultra.** The smallest model was the slowest and the most variable (the smoke run saw 3.6 s;
+  the eval saw p50 11.7 s). Its five slowest calls (21 s to 140 s) were all in the first ten messages, so we read it as
+  a slow window on the shared service rather than the model, but we did not measure it again to confirm. The 140 s step is
+  longer than our 60 s client timeout, so it probably includes a retry. Super and Ultra were steady.
+- **Suggested fix.** Published latency expectations per model, and a way to see queueing time separately from generation
+  time in the response.
+
+### 11. Rate limits are returned as headers, and a 130-request burst did not hit them
+
+- **Observed.** Every reply carries `x-ratelimit-limit-requests` / `-tokens`, `-remaining-*`, `-reset-*` and a set of
+  `x-ratelimit-dynamic-*` headers. This account showed `100` requests and `800000` tokens for Nano, `300` requests and
+  `200000` tokens for Super and for Ultra, with `reset` reported as `1s`. That is not the 60 RPM baseline we had assumed from the docs.
+- **Burst.** 130 concurrent one-token Nano requests finished in 5.9 s, all `200`, no `429`. We did not push further, so
+  we have not seen the 429 body or a `Retry-After` header; `TokenFactoryClient` retries 429/5xx with exponential backoff
+  (it does not read `Retry-After`).
+- **Suggested fix.** Document what the `dynamic-*` headers mean (window, scaling) and that the limit differs per model.
