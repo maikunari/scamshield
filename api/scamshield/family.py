@@ -204,7 +204,7 @@ def _domains(values: list[str], who: str) -> list[str]:
     for raw in (v.strip().lower() for v in values if v.strip()):
         host = re.sub(r"^[a-z]+://", "", raw).split("/")[0].removeprefix("www.")
         if not DOMAIN_RE.match(host):
-            raise ProfileError(f"{who}: “{raw}” does not look like a website address (like sakurabank.example.com)")
+            raise ProfileError(f"{who}: “{raw}” does not look like a website address (like lakeviewbank.example.com)")
         out.append(host)
     return _dedupe(out)
 

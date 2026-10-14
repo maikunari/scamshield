@@ -28,10 +28,10 @@ export const EXAMPLES: Example[] = [
       "ParcelPost: Your package could not be delivered. A redelivery fee of $1.99 is required. Pay within 24 hours: http://parcelpost-redelivery.example.com/pay",
   },
   {
-    id: "taro",
+    id: "tom",
     seedId: "m17",
-    title: "Text from grandson Taro",
+    title: "Text from grandson Tom",
     sender: "212-555-0102",
-    body: "Grandma it's Taro! The soccer game moved to Saturday at 2pm. Can you come? Love you!",
+    body: "Grandma it's Tom! The soccer game moved to Saturday at 2pm. Can you come? Love you!",
   },
 ];

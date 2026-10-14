@@ -20,11 +20,11 @@ SEED = dict(load_seed_messages(Settings.from_env({}).seed_dir))
 @pytest.mark.parametrize(
     "sender,body,expected",
     [
-        ("statements@sakurabank-online.test", "Log in: https://sakurabank-online.test/statement", True),
-        ("alerts@sakura-bank-secure.test", "x", True),
-        (None, "see https://sakurabank.example.com.evil.test/login", True),
-        (None, "see https://secure-sakurabank.test", True),
-        ("no-reply@sakurabank.example.com", "https://www.sakurabank.example.com/statements", False),
+        ("statements@lakeviewbank-online.test", "Log in: https://lakeviewbank-online.test/statement", True),
+        ("alerts@lakeview-bank-secure.test", "x", True),
+        (None, "see https://lakeviewbank.example.com.evil.test/login", True),
+        (None, "see https://secure-lakeviewbank.test", True),
+        ("no-reply@lakeviewbank.example.com", "https://www.lakeviewbank.example.com/statements", False),
         ("info@reliefnow.example.org", "https://reliefnow.example.org/donate", False),
         ("212-555-0190", "https://gardenworld-deals.example.com", False),
         (None, "https://track-mapleparcel.example.com/8841", False),
@@ -36,9 +36,9 @@ def test_lookalike_detection(profile, sender, body, expected):
 
 
 def test_lookalike_is_reported_on_the_contact_match(profile):
-    m = compare_to_contacts(profile, normalize(RawMessage(body="x", sender="statements@sakurabank-online.test")))
-    assert m.status == "unknown" and m.lookalike_of == "Sakura Example Bank"
-    assert "sakurabank-online.test imitates Sakura Example Bank" in m.reason
+    m = compare_to_contacts(profile, normalize(RawMessage(body="x", sender="statements@lakeviewbank-online.test")))
+    assert m.status == "unknown" and m.lookalike_of == "Lakeview Example Bank"
+    assert "lakeviewbank-online.test imitates Lakeview Example Bank" in m.reason
 
 
 def test_m15_is_now_red_whatever_the_model_says(settings, store, search):
@@ -51,14 +51,14 @@ def test_m15_is_now_red_whatever_the_model_says(settings, store, search):
                 r.data["risk"] = "none"
             return r
 
-    r = Pipeline(settings, Lenient(), search, store).analyze(SEED["m15"], "michiko")
+    r = Pipeline(settings, Lenient(), search, store).analyze(SEED["m15"], "margaret")
     assert r.verdict.label == "red" and r.verdict.score == 75
-    assert r.verdict.red_flags[0].text.startswith("The address looks like Sakura Example Bank's")
-    assert any("imitates Sakura Example Bank" in s.detail for s in r.trace.steps)
+    assert r.verdict.red_flags[0].text.startswith("The address looks like Lakeview Example Bank's")
+    assert any("imitates Lakeview Example Bank" in s.detail for s in r.trace.steps)
 
 
 def test_real_service_message_still_takes_the_fast_path(pipeline):
-    r = pipeline.analyze(SEED["m16"], "michiko")
+    r = pipeline.analyze(SEED["m16"], "margaret")
     assert r.verdict.label == "green" and r.contact.lookalike_of is None
 
 
@@ -81,8 +81,8 @@ def test_tools_round_trip_through_json(pipeline):
     url = box.call("check_url", {"url": "http://parcelpost-redelivery.example.com/pay"})
     assert url["lookup"]["hits"]
     assert box.call("check_phrase", {"phrase": "your grandson needs bail"})["lookup"]["topic"] == "news"
-    c = box.call("compare_to_contacts", {"sender": "212-555-0102", "parent_id": "michiko"})
-    assert c["status"] == "trusted" and c["name"] == "Taro Hayashi"
+    c = box.call("compare_to_contacts", {"sender": "212-555-0102", "parent_id": "margaret"})
+    assert c["status"] == "trusted" and c["name"] == "Tom Reed"
     json.dumps([url, c])
 
 

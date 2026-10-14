@@ -42,7 +42,7 @@ export function DemoLoader({ demoPassphrase, compact }: Props) {
       {!loaded ? (
         <>
           <p className={compact ? "small muted" : "muted"}>
-            Fills in a demo family: Michiko, her son Kenji and grandson Taro as trusted contacts, and a few past checks including a scam that alerted Kenji. No
+            Fills in a demo family: Margaret, her son David and grandson Tom as trusted contacts, and a few past checks including a scam that alerted David. No
             typing needed.
           </p>
           <button type="button" className="fbtn fbtn--primary fbtn--block" onClick={load} disabled={busy}>

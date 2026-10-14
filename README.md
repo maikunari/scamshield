@@ -10,8 +10,8 @@ A parent pastes or forwards a suspicious text, email or voicemail transcript and
 
 ## Judge in 60 seconds
 
-1. Open <https://scamshield.sonicpixel.io/>. The landing page explains both sides of the app. Tap **Load demo family** (under "Judging this?"). It resets the demo family: Michiko, her son Kenji and grandson Taro as trusted contacts, and five past checks including a scam that alerted Kenji.
-2. Open `/check/` (the landing page's **For the parent** button) and tap an example, for instance **“Grandma, I'm in trouble”**. It turns red. The screen says "Kenji has been told" only when the alert really went out (Telegram or email delivered); if it was rate-limited, de-duplicated or could not be sent, it says "Tell someone in your family." instead. A live check takes roughly 15-30 s; a repeat of the same message is answered from the cache at once.
+1. Open <https://scamshield.sonicpixel.io/>. The landing page explains both sides of the app. Tap **Load demo family** (under "Judging this?"). It resets the demo family: Margaret (74), her son David (41) and grandson Tom as trusted contacts, and five past checks including a scam that alerted David.
+2. Open `/check/` (the landing page's **For the parent** button) and tap an example, for instance **“Grandma, I'm in trouble”**. It turns red. The screen says "David has been told" only when the alert really went out (Telegram or email delivered); if it was rate-limited, de-duplicated or could not be sent, it says "Tell someone in your family." instead. A live check takes roughly 15-30 s; a repeat of the same message is answered from the cache at once.
 3. Open `/family/`, tap **Open as the demo family** (the passphrase is `scamshield-demo`). The newest check is yours: see the alert that went out and **How ScamShield decided**, the stored trace with each step's Nemotron model, tokens, latency and cost.
 
 Past checks marked *Sample* ship with the demo family; their model ids are real but their token counts and timings are illustrative. Your own check carries a measured trace.
@@ -26,7 +26,7 @@ normalize -> verdict cache -> redact PII -> triage (Nano) -> memory check -> evi
 2. **Verdict cache**: a repeat of the same message (same sender, text, parent profile and models) is answered from the cache with no model or search call, so the seed messages are free and instant after `make warm`. Degraded or failed runs are never cached.
 3. **Redact** card numbers (Luhn-checked), My Number / SSN-like ids and passwords. Only redacted text reaches a model.
 4. **Triage** (`MODEL_FAST`, Nemotron Nano): scam signals (urgency, money ask, impersonation, secrecy, links) and a risk level.
-5. **Memory**: SQLite per-parent profile of trusted contacts and known services. A message from a trusted contact, or from a known service linking only to its own domain, takes the fast path (🟢, no search, no Ultra call). An unknown sender claiming to be family and asking for money or secrecy is floored at 75; any unknown sender asking for money is floored at 50. A sender or link that imitates a known service's domain (`sakurabank-online.test` vs `sakurabank.example.com`) is floored at 75.
+5. **Memory**: SQLite per-parent profile of trusted contacts and known services. A message from a trusted contact, or from a known service linking only to its own domain, takes the fast path (🟢, no search, no Ultra call). An unknown sender claiming to be family and asking for money or secrecy is floored at 75; any unknown sender asking for money is floored at 50. A sender or link that imitates a known service's domain (`lakeviewbank-online.test` vs `lakeviewbank.example.com`) is floored at 75.
 6. **Evidence** (`MODEL_MID`, Nemotron Super, plans which lookups): up to 3 Tavily searches (plus at most one page extract) per message through the skills `check_phone`, `check_url` and `check_phrase`. Results are cached for 24h. The suspicious URL is never fetched, only searched about. A search hit counts as evidence only if it actually mentions the number or domain.
 7. **Verdict** (`MODEL_REASON`, Nemotron Ultra): score 0–100, label, `red_flags[{text, evidence_url}]`, `safe_action`, `family_script`. A red flag can only cite a URL Tavily returned for this message; anything else is stripped. If nothing was found the verdict says "No public reports found." and invents nothing.
 8. **Persist** the result with its trace. 🟢 bodies are dropped (hash and label kept) unless the family opts in.
@@ -100,7 +100,7 @@ There are no third-party assets or trademarks; the icon is an original shield ma
 `POST /api/check` takes `{body, sender?, channel?, subject?}` and returns only what the parent screen shows:
 `{label, score, red_flags[{text, evidence_url}], safe_action, evidence_note, contact, family{name}, offline, budget_mode}`.
 The family call script and the trace stay on the family side (`GET /results/{id}`). The endpoint analyses for the
-demo parent (`SCAMSHIELD_DEMO_PARENT`, default `michiko`) and loads her seed profile into the database on first use.
+demo parent (`SCAMSHIELD_DEMO_PARENT`, default `margaret`) and loads her seed profile into the database on first use.
 
 ### Family alerts
 
@@ -111,7 +111,7 @@ A 🔴 result from `/api/check` (or `/parents/{id}/analyze`) alerts the parent's
 
 A channel without credentials does not fail: the alert is stored as it would have been sent (`status: recorded`, with the payload), and `GET /parents/{id}/alerts` shows every alert, its deliveries and whether it was acknowledged. `family.notified` on the `/api/check` response is true only when something really went out. One alert is made per message per parent, and a family contact is capped at `ALERT_MAX_PER_CONTACT_PER_HOUR`.
 
-**Linking a family member's Telegram** (demo flow): `POST /parents/michiko/telegram-link` with `{"contact": "Kenji Hayashi"}` returns `{"url": "https://t.me/<bot>?start=<code>"}`. The family member opens it, taps Start, and the webhook stores their chat id. Codes are single use and valid for 7 days. Until a contact has linked, Telegram is skipped for them and email still goes out. These routes are behind the family passphrase gate (below).
+**Linking a family member's Telegram** (demo flow): `POST /parents/margaret/telegram-link` with `{"contact": "David Reed"}` returns `{"url": "https://t.me/<bot>?start=<code>"}`. The family member opens it, taps Start, and the webhook stores their chat id. Codes are single use and valid for 7 days. Until a contact has linked, Telegram is skipped for them and email still goes out. These routes are behind the family passphrase gate (below).
 
 ### Family dashboard (`/family/`)
 
@@ -135,7 +135,7 @@ The adult child's page, in the same calm style as the parent app (18px base type
 | `SCAMSHIELD_OFFLINE=1` | Force both fakes even if keys are set. |
 | `SCAMSHIELD_DB` | SQLite path for the API (default `scamshield.db`). |
 | `SCAMSHIELD_SEED_DIR` | Seed directory (default `seed/`). |
-| `SCAMSHIELD_DEMO_PARENT` | Parent id that `POST /api/check` analyses for (default `michiko`, seeded from `seed/profile.json`). |
+| `SCAMSHIELD_DEMO_PARENT` | Parent id that `POST /api/check` analyses for (default `margaret`, seeded from `seed/profile.json`). |
 | `SCAMSHIELD_WEB_DIR` | Next.js static export to serve at `/` (default `web/out`; skipped when absent). |
 | `SCAMSHIELD_API_ORIGIN` | Dev only: where `next dev` proxies `/api/*` (default `http://127.0.0.1:8000`). |
 | `PRICE_<FAST\|MID\|REASON\|LONG>_IN` / `_OUT` | Override the USD per 1M tokens for a tier. Default: the listed price of the model id. |
@@ -179,7 +179,7 @@ Results are marked `offline: true` and the CLI prints `[offline fakes]`.
 
 ## Eval
 
-`scripts/eval.py` runs the 26 seed messages (`seed/messages.jsonl`) through the pipeline with the Michiko profile (`seed/profile.json`) and compares the label to the gold labels in `seed/expected.json`. The seed mixes ten scam patterns, three Japanese variants (オレオレ詐欺, delivery SMS, ATM refund), an unknown-number "grandson" message next to the real grandson's, and safe look-alikes (bank statement, pharmacy, clinic, shop order). All numbers use reserved or invalid ranges (`212-555-01xx`, `090-0000-xxxx`) and all links are example.com / `.test` hosts.
+`scripts/eval.py` runs the 26 seed messages (`seed/messages.jsonl`) through the pipeline with the Margaret profile (`seed/profile.json`) and compares the label to the gold labels in `seed/expected.json`. The seed mixes ten scam patterns, three Japanese variants (オレオレ詐欺, delivery SMS, ATM refund), an unknown-number "grandson" message next to the real grandson's, and safe look-alikes (bank statement, pharmacy, clinic, shop order). All numbers use reserved or invalid ranges (`212-555-01xx`, `090-0000-xxxx`) and all links are example.com / `.test` hosts.
 
 Two runs of the same 26 messages and gold labels. **Offline fakes** (keyword heuristics, not a measure of model quality):
 
@@ -190,11 +190,11 @@ Two runs of the same 26 messages and gold labels. **Offline fakes** (keyword heu
 | 🟢 safe | 1.00 | 1.00 | 1.00 | 8 |
 | **accuracy** | | | **1.00** | 26 |
 
-**Live models** (run once on 2026-10-14: Nemotron Nano, Super and Ultra on Token Factory, real Tavily searches, the Michiko profile, a fresh in-memory database so nothing was cached and no family alert was sent): **26/26 labels correct (accuracy 1.00)**, confusion matrix diagonal 15 / 3 / 8, no 🔴 called 🟢. Per class precision, recall and F1 are all 1.00, the same table as above. Cost: 62 model calls, 107k tokens, about **$0.12 of model spend** (Nano $0.006, Super $0.008, Ultra $0.106) plus 49 Tavily searches at an assumed $0.008 each (~$0.30, the estimate in `TAVILY_COST_PER_CALL`), about $0.42 for the whole run.
+**Live models** (run once on 2026-10-14: Nemotron Nano, Super and Ultra on Token Factory, real Tavily searches, the Margaret profile, a fresh in-memory database so nothing was cached and no family alert was sent): **26/26 labels correct (accuracy 1.00)**, confusion matrix diagonal 15 / 3 / 8, no 🔴 called 🟢. Per class precision, recall and F1 are all 1.00, the same table as above. Cost: 62 model calls, 107k tokens, about **$0.12 of model spend** (Nano $0.006, Super $0.008, Ultra $0.106) plus 49 Tavily searches at an assumed $0.008 each (~$0.30, the estimate in `TAVILY_COST_PER_CALL`), about $0.42 for the whole run.
 
 How to read it: it is a 26-message set we wrote and tuned the rules against, so 26/26 shows the pipeline is wired and the rules plus models agree with the gold labels, not a general accuracy claim. The eight 🟢 messages never reached Ultra: the memory step passed them (trusted contact, known service on its own domain, or no risk signals) after Nano triage. The 18 🔴/🟡 messages ran Nano, Super and Ultra. The `scam_type` agreement on gold 🔴 was only 2/15 because Nano returns free-text type names (`gift_card_scams`, `electric_shutoff`) that do not match the gold vocabulary; that field is informational and does not drive the label. Latency is in [docs/feedback.md](docs/feedback.md): a full live check took a median of about 24 s of summed step time in this run (Nano is the slow step).
 
-`m15` (a phishing "statement is ready" email from the look-alike domain `sakurabank-online.test`) used to score 🟡. That was a gap in the rules, not just in the fake: the memory step now flags a sender or link whose host contains a known service's brand label (`sakurabank`) without being its domain, and a guardrail floors such a message at 75 whatever the model says. The offline numbers measure the keyword fake and the rules around it, not Nemotron. `python scripts/eval.py --markdown` prints just the table (live when `NEBIUS_API_KEY` and `TAVILY_API_KEY` are set, offline otherwise; `run_eval` uses an in-memory store and never dispatches family alerts); `--fail-on-red-as-green` exits non-zero if any scam is called safe.
+`m15` (a phishing "statement is ready" email from the look-alike domain `lakeviewbank-online.test`) used to score 🟡. That was a gap in the rules, not just in the fake: the memory step now flags a sender or link whose host contains a known service's brand label (`lakeviewbank`) without being its domain, and a guardrail floors such a message at 75 whatever the model says. The offline numbers measure the keyword fake and the rules around it, not Nemotron. `python scripts/eval.py --markdown` prints just the table (live when `NEBIUS_API_KEY` and `TAVILY_API_KEY` are set, offline otherwise; `run_eval` uses an in-memory store and never dispatches family alerts); `--fail-on-red-as-green` exits non-zero if any scam is called safe.
 
 ## Privacy
 

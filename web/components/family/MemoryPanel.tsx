@@ -53,12 +53,12 @@ function ContactForm({ initial, onSave, onCancel, saving, error }: FormProps<Con
       <div className="fgrid fgrid--2">
         <div className="ffield">
           <label htmlFor="c-phones">Phone numbers</label>
-          <textarea id="c-phones" className="ftextarea" value={phones} onChange={(e) => setPhones(e.target.value)} placeholder={"212-555-0101\n090-0000-0101"} />
+          <textarea id="c-phones" className="ftextarea" value={phones} onChange={(e) => setPhones(e.target.value)} placeholder={"212-555-0101\n646-555-0101"} />
           <span className="hint">One per line. Messages from these numbers count as trusted.</span>
         </div>
         <div className="ffield">
           <label htmlFor="c-emails">Email addresses</label>
-          <textarea id="c-emails" className="ftextarea" value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="kenji@example.com" />
+          <textarea id="c-emails" className="ftextarea" value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="david@example.com" />
           <span className="hint">Alerts go here, and mail from here counts as trusted.</span>
         </div>
       </div>
@@ -108,7 +108,7 @@ function ServiceForm({ initial, onSave, onCancel, saving, error }: FormProps<Kno
       </div>
       <div className="ffield">
         <label htmlFor="s-domains">Website addresses</label>
-        <textarea id="s-domains" className="ftextarea" value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="sakurabank.example.com" />
+        <textarea id="s-domains" className="ftextarea" value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="lakeviewbank.example.com" />
         <span className="hint">One per line. A link or sender that only imitates one of these is flagged as a look-alike.</span>
       </div>
       <div className="fgrid fgrid--2">
@@ -118,7 +118,7 @@ function ServiceForm({ initial, onSave, onCancel, saving, error }: FormProps<Kno
         </div>
         <div className="ffield">
           <label htmlFor="s-senders">Sender addresses</label>
-          <textarea id="s-senders" className="ftextarea" value={senders} onChange={(e) => setSenders(e.target.value)} placeholder="no-reply@sakurabank.example.com" />
+          <textarea id="s-senders" className="ftextarea" value={senders} onChange={(e) => setSenders(e.target.value)} placeholder="no-reply@lakeviewbank.example.com" />
         </div>
       </div>
       {error && <p className="notice notice--bad" role="alert">{error}</p>}

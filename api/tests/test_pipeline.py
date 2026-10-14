@@ -16,7 +16,7 @@ SEED = dict(load_seed_messages(Settings.from_env({}).seed_dir))
 
 
 def run(pipeline, mid):
-    return pipeline.analyze(SEED[mid], "michiko")
+    return pipeline.analyze(SEED[mid], "margaret")
 
 
 def test_scam_gets_red_with_real_evidence_urls(pipeline, search):
@@ -31,7 +31,7 @@ def test_scam_gets_red_with_real_evidence_urls(pipeline, search):
 
 
 def test_nothing_found_says_so_and_cites_nothing(pipeline):
-    r = run(pipeline, "m14")  # new-number "Taro": no fixtures for it
+    r = run(pipeline, "m14")  # new-number "Tom": no fixtures for it
     assert r.verdict.label == "red"
     assert r.verdict.evidence_note == "No public reports found."
     assert all(f.evidence_url is None for f in r.verdict.red_flags)
@@ -45,11 +45,11 @@ def test_trusted_contact_skips_model_and_search(pipeline, search):
 
 
 def test_same_grandson_story_from_unknown_number_is_red(pipeline):
-    taro_real = pipeline.analyze(RawMessage(body="Grandma it's Taro, can you send $50 for a book?", sender="212-555-0102"), "michiko")
-    taro_fake = pipeline.analyze(RawMessage(body="Grandma it's Taro, can you send $50 for a book?", sender="212-555-0173"), "michiko")
-    assert taro_real.verdict.score < taro_fake.verdict.score
-    assert taro_fake.verdict.score >= 50
-    assert taro_real.verdict.score >= 30  # trusted but money ask: at least careful
+    tom_real = pipeline.analyze(RawMessage(body="Grandma it's Tom, can you send $50 for a book?", sender="212-555-0102"), "margaret")
+    tom_fake = pipeline.analyze(RawMessage(body="Grandma it's Tom, can you send $50 for a book?", sender="212-555-0173"), "margaret")
+    assert tom_real.verdict.score < tom_fake.verdict.score
+    assert tom_fake.verdict.score >= 50
+    assert tom_real.verdict.score >= 30  # trusted but money ask: at least careful
 
 
 def test_unknown_family_plus_money_floor_applies_even_if_model_says_low(settings, store, search):
@@ -82,7 +82,7 @@ def test_invented_evidence_urls_are_stripped(settings, store, search):
 def test_search_budget_is_three_calls_per_message(pipeline, search):
     r = pipeline.analyze(RawMessage(
         body="Urgent: pay the fee at http://a.test/1 and http://b.test/2 or call 212-555-0101 / 212-555-0102 / 212-555-0103",
-        sender="212-555-0199"), "michiko")
+        sender="212-555-0199"), "margaret")
     assert len(search.calls) <= 3
     assert len(r.lookups) <= 3
 
@@ -96,7 +96,7 @@ def test_pii_never_reaches_the_model(settings, store, search):
             return super().complete_json(request)
 
     body = "Urgent pay now, card 4111 1111 1111 1111 password: hunter2 SSN 123-45-6789"
-    Pipeline(settings, Spy(), search, store).analyze(RawMessage(body=body, sender="212-555-0199"), "michiko")
+    Pipeline(settings, Spy(), search, store).analyze(RawMessage(body=body, sender="212-555-0199"), "margaret")
     blob = "\n".join(seen)
     assert seen and "4111" not in blob and "hunter2" not in blob and "6789" not in blob
 
@@ -142,7 +142,7 @@ def test_url_under_suspicion_is_never_fetched(settings, store):
         return httpx.Response(200, json={"results": []})
 
     tavily = TavilyClient("k", transport=httpx.MockTransport(handler))
-    r = Pipeline(settings, FakeLLMClient(), tavily, store).analyze(SEED["m02"], "michiko")
+    r = Pipeline(settings, FakeLLMClient(), tavily, store).analyze(SEED["m02"], "margaret")
     assert r.lookups and set(hosts) == {"api.tavily.com"}
 
 

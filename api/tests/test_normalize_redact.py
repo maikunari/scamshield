@@ -18,7 +18,7 @@ def test_extracts_urls_and_phones_without_confusing_them():
 
 
 def test_sender_normalisation():
-    assert normalize_sender("Kenji <Kenji.Hayashi@Family.example.com>") == "kenji.hayashi@family.example.com"
+    assert normalize_sender("David <David.Reed@Family.example.com>") == "david.reed@family.example.com"
     assert normalize_sender("212-555-0101") == "+12125550101"
     assert normalize_sender(None) is None
 

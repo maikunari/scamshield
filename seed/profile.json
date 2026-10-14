@@ -1,25 +1,24 @@
 {
-  "id": "michiko",
-  "name": "Michiko Hayashi",
+  "id": "margaret",
+  "name": "Margaret Reed",
   "languages": [
-    "en",
-    "ja"
+    "en"
   ],
   "store_green_bodies": false,
   "trusted_contacts": [
     {
-      "name": "Kenji Hayashi",
+      "name": "David Reed",
       "relationship": "son",
       "phones": [
         "212-555-0101",
-        "090-0000-0101"
+        "646-555-0101"
       ],
       "emails": [
-        "kenji.hayashi@family.example.com"
+        "david.reed@family.example.com"
       ]
     },
     {
-      "name": "Taro Hayashi",
+      "name": "Tom Reed",
       "relationship": "grandson",
       "phones": [
         "212-555-0102"
@@ -29,14 +28,14 @@
   ],
   "known_services": [
     {
-      "name": "Sakura Example Bank",
+      "name": "Lakeview Example Bank",
       "kind": "bank",
       "domains": [
-        "sakurabank.example.com"
+        "lakeviewbank.example.com"
       ],
       "phones": [],
       "senders": [
-        "no-reply@sakurabank.example.com"
+        "no-reply@lakeviewbank.example.com"
       ]
     },
     {
@@ -49,11 +48,11 @@
       "senders": []
     },
     {
-      "name": "Sakura Clinic",
+      "name": "Riverside Clinic",
       "kind": "clinic",
       "domains": [],
       "phones": [
-        "090-0000-0120"
+        "212-555-0120"
       ],
       "senders": []
     },

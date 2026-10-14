@@ -11,13 +11,13 @@
     ]
   },
   {
-    "match": "sakura-bank-verify.test",
+    "match": "lakeview-bank-verify.test",
     "note": "synthetic recorded result for offline mode",
     "results": [
       {
-        "title": "sakura-bank-verify.test flagged as a bank phishing site",
-        "url": "https://phishing-tracker.example.com/domains/sakura-bank-verify.test",
-        "content": "The domain sakura-bank-verify.test imitates a bank login page and was reported in a wave of 'account locked' phishing emails."
+        "title": "lakeview-bank-verify.test flagged as a bank phishing site",
+        "url": "https://phishing-tracker.example.com/domains/lakeview-bank-verify.test",
+        "content": "The domain lakeview-bank-verify.test imitates a bank login page and was reported in a wave of 'account locked' phishing emails."
       }
     ]
   },

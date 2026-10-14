@@ -7,14 +7,14 @@
       "result": {
         "message": {
           "channel": "email",
-          "sender": "statements@sakurabank-online.test",
+          "sender": "statements@lakeviewbank-online.test",
           "subject": "Your monthly statement is ready",
-          "body": "Your monthly statement is ready. Log in to view it: https://sakurabank-online.test/statement",
+          "body": "Your monthly statement is ready. Log in to view it: https://lakeviewbank-online.test/statement",
           "urls": [
-            "https://sakurabank-online.test/statement"
+            "https://lakeviewbank-online.test/statement"
           ],
           "phones": [],
-          "ts": "2026-10-06T14:38:00+09:00"
+          "ts": "2026-10-06T14:38:00-04:00"
         },
         "triage": {
           "signals": {
@@ -30,20 +30,20 @@
           "scam_type": "bank_phishing",
           "key_phrase": null,
           "language": "en",
-          "summary": "Email saying a statement is ready, with a login link on sakurabank-online.test, a look-alike of Sakura Example Bank's real address."
+          "summary": "Email saying a statement is ready, with a login link on lakeviewbank-online.test, a look-alike of Lakeview Example Bank's real address."
         },
         "contact": {
           "status": "unknown",
           "name": null,
           "relationship": null,
-          "reason": "sakurabank-online.test imitates Sakura Example Bank's address (sakurabank.example.com) but is not it",
-          "lookalike_of": "Sakura Example Bank"
+          "reason": "lakeviewbank-online.test imitates Lakeview Example Bank's address (lakeviewbank.example.com) but is not it",
+          "lookalike_of": "Lakeview Example Bank"
         },
         "lookups": [
           {
             "skill": "check_url",
-            "value": "https://sakurabank-online.test/statement",
-            "query": "sakurabank-online.test scam phishing",
+            "value": "https://lakeviewbank-online.test/statement",
+            "query": "lakeviewbank-online.test scam phishing",
             "topic": "general",
             "hits": [],
             "raw_hit_count": 0,
@@ -56,7 +56,7 @@
           "score": 75,
           "red_flags": [
             {
-              "text": "The sender and link use sakurabank-online.test. It imitates Sakura Example Bank (sakurabank.example.com) but is not it.",
+              "text": "The sender and link use lakeviewbank-online.test. It imitates Lakeview Example Bank (lakeviewbank.example.com) but is not it.",
               "evidence_url": null
             },
             {
@@ -64,9 +64,9 @@
               "evidence_url": null
             }
           ],
-          "safe_action": "Do not click the link. Open the Sakura Example Bank app yourself, or call the number on your bank card.",
-          "family_script": "Hi Mom, it's Kenji. I saw the bank statement email. Please don't click anything in it; the address isn't your bank's. I'll come by, or we can open the bank app together.",
-          "evidence_note": "No public reports of this address were found. The mismatch with Michiko's saved bank address is what flagged it.",
+          "safe_action": "Do not click the link. Open the Lakeview Example Bank app yourself, or call the number on your bank card.",
+          "family_script": "Hi Mom, it's David. I saw the bank statement email. Please don't click anything in it; the address isn't your bank's. I'll come by, or we can open the bank app together.",
+          "evidence_note": "No public reports of this address were found. The mismatch with Margaret's saved bank address is what flagged it.",
           "degraded": false
         },
         "trace": {
@@ -116,7 +116,7 @@
               "tokens_out": 0,
               "latency_ms": 0.1,
               "cost_usd": 0.0,
-              "detail": "unknown: sakurabank-online.test imitates Sakura Example Bank's address (sakurabank.example.com) but is not it",
+              "detail": "unknown: lakeviewbank-online.test imitates Lakeview Example Bank's address (lakeviewbank.example.com) but is not it",
               "error": null
             },
             {
@@ -140,7 +140,7 @@
               "tokens_out": 0,
               "latency_ms": 880.0,
               "cost_usd": 0.008,
-              "detail": "tavily: 0 raw results | q=sakurabank-online.test scam phishing",
+              "detail": "tavily: 0 raw results | q=lakeviewbank-online.test scam phishing",
               "error": null
             },
             {
@@ -164,7 +164,7 @@
               "tokens_out": 0,
               "latency_ms": 0.0,
               "cost_usd": 0.0,
-              "detail": "imitates Sakura Example Bank's address: floor 75",
+              "detail": "imitates Lakeview Example Bank's address: floor 75",
               "error": null
             }
           ]
@@ -175,14 +175,14 @@
       "alert": {
         "deliveries": [
           {
-            "contact": "Kenji Hayashi",
+            "contact": "David Reed",
             "channel": "email",
             "status": "recorded",
-            "target": "kenji.hayashi@family.example.com",
+            "target": "david.reed@family.example.com",
             "detail": "Demo example: nothing was sent"
           },
           {
-            "contact": "Kenji Hayashi",
+            "contact": "David Reed",
             "channel": "telegram",
             "status": "recorded",
             "target": "(not linked)",
@@ -204,7 +204,7 @@
             "https://track-mapleparcel.example.com/8841"
           ],
           "phones": [],
-          "ts": "2026-10-07T15:48:00+09:00"
+          "ts": "2026-10-07T15:48:00-04:00"
         },
         "triage": {
           "signals": {
@@ -418,7 +418,7 @@
           "body": "Maple Pharmacy: Your prescription is ready for pickup. Open until 7pm today. Reply STOP to opt out.",
           "urls": [],
           "phones": [],
-          "ts": "2026-10-09T17:59:00+09:00"
+          "ts": "2026-10-09T17:59:00-04:00"
         },
         "triage": {
           "signals": {
@@ -450,7 +450,7 @@
           "red_flags": [],
           "safe_action": "This looks fine. No action needed.",
           "family_script": "",
-          "evidence_note": "Not checked online: the sender is Michiko's saved pharmacy.",
+          "evidence_note": "Not checked online: the sender is Margaret's saved pharmacy.",
           "degraded": false
         },
         "trace": {
@@ -534,7 +534,7 @@
           "phones": [
             "+12125550133"
           ],
-          "ts": "2026-10-01T09:03:00+09:00"
+          "ts": "2026-10-01T09:03:00-04:00"
         },
         "triage": {
           "signals": {
@@ -747,14 +747,14 @@
       "alert": {
         "deliveries": [
           {
-            "contact": "Kenji Hayashi",
+            "contact": "David Reed",
             "channel": "email",
             "status": "recorded",
-            "target": "kenji.hayashi@family.example.com",
+            "target": "david.reed@family.example.com",
             "detail": "Demo example: nothing was sent"
           },
           {
-            "contact": "Kenji Hayashi",
+            "contact": "David Reed",
             "channel": "telegram",
             "status": "recorded",
             "target": "(not linked)",
@@ -762,7 +762,7 @@
           }
         ],
         "acked_hours_ago": 24.5,
-        "acked_by": "Kenji Hayashi",
+        "acked_by": "David Reed",
         "acked_via": "telegram"
       }
     },
@@ -772,14 +772,14 @@
       "result": {
         "message": {
           "channel": "email",
-          "sender": "no-reply@sakurabank.example.com",
+          "sender": "no-reply@lakeviewbank.example.com",
           "subject": "Your October statement is ready",
-          "body": "Your October statement is now available. Please log in through the Sakura Example Bank app or visit https://www.sakurabank.example.com/statements to view it. We will never ask for your password by phone or email.",
+          "body": "Your October statement is now available. Please log in through the Lakeview Example Bank app or visit https://www.lakeviewbank.example.com/statements to view it. We will never ask for your password by phone or email.",
           "urls": [
-            "https://www.sakurabank.example.com/statements"
+            "https://www.lakeviewbank.example.com/statements"
           ],
           "phones": [],
-          "ts": "2026-10-07T15:45:00+09:00"
+          "ts": "2026-10-07T15:45:00-04:00"
         },
         "triage": {
           "signals": {
@@ -795,13 +795,13 @@
           "scam_type": null,
           "key_phrase": null,
           "language": "en",
-          "summary": "Statement notice from Sakura Example Bank's saved address. It points to the bank app, not a link."
+          "summary": "Statement notice from Lakeview Example Bank's saved address. It points to the bank app, not a link."
         },
         "contact": {
           "status": "known_service",
-          "name": "Sakura Example Bank",
+          "name": "Lakeview Example Bank",
           "relationship": "bank",
-          "reason": "sender matches known service Sakura Example Bank",
+          "reason": "sender matches known service Lakeview Example Bank",
           "lookalike_of": null
         },
         "lookups": [],
@@ -811,7 +811,7 @@
           "red_flags": [],
           "safe_action": "This looks fine. No action needed.",
           "family_script": "",
-          "evidence_note": "Not checked online: the sender is Michiko's saved bank and every link is on its own site.",
+          "evidence_note": "Not checked online: the sender is Margaret's saved bank and every link is on its own site.",
           "degraded": false
         },
         "trace": {
@@ -861,7 +861,7 @@
               "tokens_out": 0,
               "latency_ms": 0.1,
               "cost_usd": 0.0,
-              "detail": "known_service: sender matches known service Sakura Example Bank",
+              "detail": "known_service: sender matches known service Lakeview Example Bank",
               "error": null
             },
             {
@@ -873,7 +873,7 @@
               "tokens_out": 0,
               "latency_ms": 0.0,
               "cost_usd": 0.0,
-              "detail": "known service Sakura Example Bank, links on its own domain: skipped evidence and verdict model",
+              "detail": "known service Lakeview Example Bank, links on its own domain: skipped evidence and verdict model",
               "error": null
             }
           ]

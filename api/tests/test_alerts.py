@@ -85,13 +85,13 @@ def make_world(env: dict, providers: FakeProviders | None = None):
 
 
 def red_result(pipeline, body=SCAM, sender="212-555-0142"):
-    result = pipeline.analyze(RawMessage(body=body, sender=sender), "michiko")
+    result = pipeline.analyze(RawMessage(body=body, sender=sender), "margaret")
     assert result.verdict.label == "red"
     return result
 
 
-def link_kenji(service, store, profile, chat_id="777"):
-    link = service.create_telegram_link(profile, "Kenji Hayashi")
+def link_david(service, store, profile, chat_id="777"):
+    link = service.create_telegram_link(profile, "David Reed")
     service.handle_update({"message": {"chat": {"id": int(chat_id)}, "text": f"/start {link['code']}"}})
     return link
 
@@ -101,7 +101,7 @@ def link_kenji(service, store, profile, chat_id="777"):
 
 def test_red_alert_goes_to_telegram_and_email(providers):
     pipeline, service, profile, store = make_world(ENV, providers)
-    link_kenji(service, store, profile)
+    link_david(service, store, profile)
     result = red_result(pipeline)
 
     outcome = service.dispatch(result, profile)
@@ -112,17 +112,17 @@ def test_red_alert_goes_to_telegram_and_email(providers):
     assert len(sent) == 1
     msg = sent[0]
     assert msg["parse_mode"] == "HTML"
-    assert "Michiko" in msg["text"] and "Suggested words for the call" in msg["text"]
+    assert "Margaret" in msg["text"] and "Suggested words for the call" in msg["text"]
     assert f"{BASE}/family/?check={result.id}" in msg["text"]
     buttons = msg["reply_markup"]["inline_keyboard"]
     assert buttons[0][0] == {"text": "I called her", "callback_data": f"ack:{outcome.alert_id}"}
     assert buttons[1][0]["url"] == f"{BASE}/family/?check={result.id}"
-    # Resend: one call, bearer auth, to Kenji's address, HTML and plain text with the ack link.
+    # Resend: one call, bearer auth, to David's address, HTML and plain text with the ack link.
     [email] = providers.emails
     assert email.headers["authorization"] == f"Bearer {RESEND_KEY}"
     assert email.headers["idempotency-key"].startswith(f"alert-{outcome.alert_id}")
     body = json.loads(email.content)
-    assert body["to"] == ["kenji.hayashi@family.example.com"]
+    assert body["to"] == ["david.reed@family.example.com"]
     assert body["from"] == ENV["ALERT_EMAIL_FROM"]
     assert "I called her" in body["html"] and "tap here" in body["text"]
     alert = store.alert_get(outcome.alert_id)
@@ -140,37 +140,37 @@ def test_only_the_adult_child_is_alerted_not_the_grandson(providers):
     pipeline, service, profile, store = make_world(ENV, providers)
     outcome = service.dispatch(red_result(pipeline), profile)
     contacts = {d["contact"] for d in store.alert_get(outcome.alert_id)["deliveries"]}
-    assert contacts == {"Kenji Hayashi"}
+    assert contacts == {"David Reed"}
 
 
 def test_green_and_yellow_are_not_alerted(providers):
     pipeline, service, profile, store = make_world(ENV, providers)
-    green = pipeline.analyze(RawMessage(body="Grandma it's Taro! The soccer game moved to Saturday at 2pm.", sender="212-555-0102"), "michiko")
+    green = pipeline.analyze(RawMessage(body="Grandma it's Tom! The soccer game moved to Saturday at 2pm.", sender="212-555-0102"), "margaret")
     yellow = pipeline.analyze(
         RawMessage(body="Your order from Maple Garden Shop is out for delivery. Track: https://track-mapleparcel.example.com/8841", sender="212-555-0175"),
-        "michiko",
+        "margaret",
     )
     assert (green.verdict.label, yellow.verdict.label) == ("green", "yellow")
     for r in (green, yellow):
         assert service.dispatch(r, profile).alert_id is None
-    assert providers.requests == [] and store.alerts_for_parent("michiko") == []
+    assert providers.requests == [] and store.alerts_for_parent("margaret") == []
 
 
 def test_one_alert_per_message_even_when_checked_twice(providers):
     pipeline, service, profile, store = make_world(ENV, providers)
-    link_kenji(service, store, profile)
+    link_david(service, store, profile)
     first = service.dispatch(red_result(pipeline), profile)
     again = service.dispatch(red_result(pipeline), profile)  # same text, same sender: a second check
     assert first.created and not again.created
     assert again.alert_id == first.alert_id and again.notified
     assert len(providers.emails) == 1
     assert len(providers.alerts_sent("777")) == 1
-    assert len(store.alerts_for_parent("michiko")) == 1
+    assert len(store.alerts_for_parent("margaret")) == 1
 
 
 def test_channel_failure_is_recorded_and_the_other_channel_still_goes(providers, caplog):
     pipeline, service, profile, store = make_world(ENV, providers)
-    link_kenji(service, store, profile)
+    link_david(service, store, profile)
     providers.fail.add("api.telegram.org")
     with caplog.at_level(logging.DEBUG):
         outcome = service.dispatch(red_result(pipeline), profile)
@@ -200,7 +200,7 @@ def test_unconfigured_channels_record_the_alert_instead_of_sending(providers):
     assert providers.requests == []
     deliveries = {d["channel"]: d for d in store.alert_get(outcome.alert_id)["deliveries"]}
     assert {d["status"] for d in deliveries.values()} == {"recorded"}
-    assert deliveries["email"]["target"] == "kenji.hayashi@family.example.com"
+    assert deliveries["email"]["target"] == "david.reed@family.example.com"
     assert deliveries["email"]["payload"]["subject"].startswith("ScamShield:")
     assert "Suggested words for the call" in deliveries["email"]["payload"]["text"]
     assert deliveries["telegram"]["payload"]["buttons"][0][0]["text"] == "I called her"
@@ -219,7 +219,7 @@ def test_email_needs_both_key_and_sender_address(providers):
 def test_alerts_per_contact_are_rate_limited(providers):
     env = {**ENV, "ALERT_MAX_PER_CONTACT_PER_HOUR": "2"}
     pipeline, service, profile, store = make_world(env, providers)
-    link_kenji(service, store, profile)
+    link_david(service, store, profile)
     outcomes = [
         service.dispatch(red_result(pipeline, body=f"{SCAM} Case {i}."), profile) for i in range(4)
     ]
@@ -235,21 +235,21 @@ def test_alerts_per_contact_are_rate_limited(providers):
 
 def test_start_link_stores_the_chat_and_confirms(providers):
     pipeline, service, profile, store = make_world(ENV, providers)
-    link = service.create_telegram_link(profile, "kenji hayashi")
+    link = service.create_telegram_link(profile, "david reed")
     assert link["url"] == f"https://t.me/ScamShieldBot?start={link['code']}"
     service.handle_update({"message": {"chat": {"id": 4242}, "text": f"/start {link['code']}"}})
-    assert store.telegram_chat("michiko", "Kenji Hayashi") == "4242"
+    assert store.telegram_chat("margaret", "David Reed") == "4242"
     confirm = providers.telegram("sendMessage")[-1]
     assert confirm["chat_id"] == "4242" and "linked" in confirm["text"]
     # The code is single use.
     service.handle_update({"message": {"chat": {"id": 9999}, "text": f"/start {link['code']}"}})
-    assert store.telegram_chat("michiko", "Kenji Hayashi") == "4242"
+    assert store.telegram_chat("margaret", "David Reed") == "4242"
     assert "expired" in providers.telegram("sendMessage")[-1]["text"]
 
 
 def test_only_family_contacts_get_a_link(providers):
     _, service, profile, _ = make_world(ENV, providers)
-    assert service.create_telegram_link(profile, "Taro Hayashi") is None
+    assert service.create_telegram_link(profile, "Tom Reed") is None
     assert service.create_telegram_link(profile, "Nobody") is None
 
 
@@ -269,7 +269,7 @@ def test_register_webhook_needs_token_secret_and_https_url(providers):
 
 def test_telegram_button_acknowledges_and_replaces_the_button(providers):
     pipeline, service, profile, store = make_world(ENV, providers)
-    link_kenji(service, store, profile)
+    link_david(service, store, profile)
     outcome = service.dispatch(red_result(pipeline), profile)
     assert store.alert_get(outcome.alert_id)["acked_at"] is None
 
@@ -281,7 +281,7 @@ def test_telegram_button_acknowledges_and_replaces_the_button(providers):
     })
 
     alert = store.alert_get(outcome.alert_id)
-    assert alert["acked_at"] and alert["acked_by"] == "Kenji Hayashi" and alert["acked_via"] == "telegram"
+    assert alert["acked_at"] and alert["acked_by"] == "David Reed" and alert["acked_via"] == "telegram"
     assert providers.telegram("answerCallbackQuery")[-1]["callback_query_id"] == "cb1"
     edit = providers.telegram("editMessageReplyMarkup")[-1]
     assert edit["chat_id"] == "777" and edit["message_id"] == 55
@@ -359,15 +359,15 @@ def hook(c, update, secret=HOOK_SECRET):
 
 def test_api_end_to_end_link_check_alert_and_ack(api):
     c, service, providers = api
-    link = c.post("/parents/michiko/telegram-link", json={"contact": "Kenji Hayashi"}).json()
+    link = c.post("/parents/margaret/telegram-link", json={"contact": "David Reed"}).json()
     assert link["url"].startswith("https://t.me/ScamShieldBot?start=")
     assert hook(c, {"message": {"chat": {"id": 777}, "text": f"/start {link['code']}"}}).status_code == 200
 
     r = c.post("/api/check", json={"sender": "212-555-0142", "body": SCAM})
     assert r.status_code == 200
-    assert r.json()["label"] == "red" and r.json()["family"] == {"name": "Kenji", "notified": True}
+    assert r.json()["label"] == "red" and r.json()["family"] == {"name": "David", "notified": True}
 
-    [alert] = c.get("/parents/michiko/alerts").json()
+    [alert] = c.get("/parents/margaret/alerts").json()
     assert "token" not in alert and alert["acked_at"] is None
     assert {(d["channel"], d["status"]) for d in alert["deliveries"]} == {("telegram", "sent"), ("email", "sent")}
 
@@ -375,10 +375,10 @@ def test_api_end_to_end_link_check_alert_and_ack(api):
     token = service.store.alert_get(alert["id"])["token"]
     page = c.get(f"/api/alerts/{alert['id']}/ack", params={"t": token})
     assert page.status_code == 200 and "<form" in page.text
-    assert c.get("/parents/michiko/alerts").json()[0]["acked_at"] is None
+    assert c.get("/parents/margaret/alerts").json()[0]["acked_at"] is None
     done = c.post(f"/api/alerts/{alert['id']}/ack", params={"t": token})
     assert done.status_code == 200 and "Marked as called" in done.text
-    acked = c.get("/parents/michiko/alerts").json()[0]
+    acked = c.get("/parents/margaret/alerts").json()[0]
     assert acked["acked_at"] and acked["acked_via"] == "email"
     assert c.post(f"/api/alerts/{alert['id']}/ack", params={"t": "nope"}).status_code == 404
     assert c.get(f"/api/alerts/{alert['id']}/ack", params={"t": "nope"}).status_code == 404
@@ -386,7 +386,7 @@ def test_api_end_to_end_link_check_alert_and_ack(api):
     # Re-checking the same message neither re-alerts nor un-acknowledges.
     again = c.post("/api/check", json={"sender": "212-555-0142", "body": SCAM})
     assert again.json()["family"]["notified"] is True
-    assert len(c.get("/parents/michiko/alerts").json()) == 1 and len(providers.emails) == 1
+    assert len(c.get("/parents/margaret/alerts").json()) == 1 and len(providers.emails) == 1
 
 
 def test_webhook_rejects_a_missing_or_wrong_secret(api):
@@ -407,6 +407,6 @@ def test_webhook_is_off_without_a_bot_token(monkeypatch, tmp_path):
         # Offline, a red check still works: the alert is recorded and the parent is not told it was delivered.
         r = c.post("/api/check", json={"sender": "212-555-0142", "body": SCAM})
         assert r.json()["label"] == "red" and r.json()["family"]["notified"] is False
-        [alert] = c.get("/parents/michiko/alerts").json()
+        [alert] = c.get("/parents/margaret/alerts").json()
         assert {d["status"] for d in alert["deliveries"]} == {"recorded"}
     reset_caches()
