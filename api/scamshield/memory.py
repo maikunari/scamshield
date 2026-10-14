@@ -100,7 +100,7 @@ def _squash(host: str) -> str:
 def lookalike_service(profile: Profile, message: Message) -> tuple[KnownService, str] | None:
     """A known service whose domain this message imitates: the sender's or a link's host is not the service's
     domain (or a subdomain of it) but contains its brand label with the dots and hyphens removed, so
-    ``sakurabank-online.test`` and ``sakurabank.example.com.evil.test`` both imitate ``sakurabank.example.com``."""
+    ``lakeviewbank-online.test`` and ``lakeviewbank.example.com.evil.test`` both imitate ``lakeviewbank.example.com``."""
     hosts = [domain_of(u) for u in message.urls]
     if message.sender and "@" in message.sender:
         hosts.append(message.sender.split("@", 1)[1])

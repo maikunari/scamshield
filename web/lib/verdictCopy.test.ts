@@ -12,7 +12,7 @@ function result(over: Partial<CheckResponse> = {}, family: Partial<CheckResponse
     safe_action: "Hang up.",
     evidence_note: "",
     contact: { status: "unknown", name: null, relationship: null, reason: "" },
-    family: { name: "Kenji Hayashi", notified: false, ...family },
+    family: { name: "David Reed", notified: false, ...family },
     language: "en",
     offline: false,
     degraded: false,
@@ -21,7 +21,7 @@ function result(over: Partial<CheckResponse> = {}, family: Partial<CheckResponse
 }
 
 test("red says the family has been told only when an alert really went out", () => {
-  assert.equal(copyFor(result({}, { notified: true })).sub, "Kenji Hayashi has been told.");
+  assert.equal(copyFor(result({}, { notified: true })).sub, "David Reed has been told.");
 });
 
 test("red falls back to a neutral line when nobody was notified (failed, rate-limited, deduplicated, unconfigured)", () => {
@@ -33,6 +33,6 @@ test("red with no family name never claims anyone was told", () => {
 });
 
 test("yellow and green copy does not depend on notified", () => {
-  assert.equal(copyFor(result({ label: "yellow" })).sub, "Ask Kenji Hayashi first.");
+  assert.equal(copyFor(result({ label: "yellow" })).sub, "Ask David Reed first.");
   assert.equal(copyFor(result({ label: "green" })).sub, "Nothing in it looks like a scam.");
 });

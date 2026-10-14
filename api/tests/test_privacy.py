@@ -46,20 +46,20 @@ def _rows(store, table):
 def test_export_has_everything_stored_and_no_secrets(client):
     first = _check(client)
     data = client.get("/api/my-data/export").json()
-    assert data["parent_id"] == "michiko"
+    assert data["parent_id"] == "margaret"
     assert data["profile"]["name"]
     assert [c["id"] for c in data["checks"]] == [first["id"]]
     assert data["checks"][0]["message"]["body"] == SCAM
     assert data["checks"][0]["trace"]["steps"], "the export carries the trace"
     assert data["alerts"], "a red check made an alert"
     assert all("token" not in a for a in data["alerts"])
-    assert client.get("/parents/michiko/export").json()["checks"] == data["checks"]
+    assert client.get("/parents/margaret/export").json()["checks"] == data["checks"]
 
 
 def test_delete_requires_confirmation(client):
     _check(client)
     assert client.delete("/api/my-data").status_code == 400
-    assert client.delete("/parents/michiko/data?confirm=no").status_code == 400
+    assert client.delete("/parents/margaret/data?confirm=no").status_code == 400
     assert len(client.get("/api/my-data/export").json()["checks"]) == 1
 
 
@@ -96,12 +96,12 @@ def test_delete_all_leaves_other_parents_alone(client):
 
 def test_delete_one_check_removes_it_its_alert_and_its_cached_copy(client):
     a = _check(client)
-    b = _check(client, "Your bank account is locked, verify now at http://sakura-bank-verify.test", sender="bank@x.test")
+    b = _check(client, "Your bank account is locked, verify now at http://lakeview-bank-verify.test", sender="bank@x.test")
     store = main.get_pipeline().store
     assert client.delete(f"/api/check/{a['id']}").status_code == 200
     assert store.get_analysis(a["id"]) is None
     assert store.get_analysis(b["id"]) is not None
-    assert not [x for x in store.alerts_for_parent("michiko") if x["analysis_id"] == a["id"]]
+    assert not [x for x in store.alerts_for_parent("margaret") if x["analysis_id"] == a["id"]]
     assert all(SCAM not in r["result_json"] for r in store._db.execute("SELECT result_json FROM verdict_cache"))
     assert client.delete(f"/api/check/{a['id']}").status_code == 404
 
@@ -109,7 +109,7 @@ def test_delete_one_check_removes_it_its_alert_and_its_cached_copy(client):
 def test_delete_one_check_does_not_touch_another_parents_check(client):
     pipeline = main.get_pipeline()
     other = pipeline.analyze(RawMessage(body=SCAM, sender="212-555-0142"), "someone-else")
-    assert client.delete(f"/parents/michiko/checks/{other.id}").status_code == 404
+    assert client.delete(f"/parents/margaret/checks/{other.id}").status_code == 404
     assert pipeline.store.get_analysis(other.id) is not None
 
 
@@ -145,7 +145,7 @@ def test_retention_env_defaults_off():
 def test_export_parent_function_matches_route(client):
     _check(client)
     store = main.get_pipeline().store
-    assert export_parent(store, "michiko")["checks"][0]["message"]["body"] == SCAM
+    assert export_parent(store, "margaret")["checks"][0]["message"]["body"] == SCAM
 
 
 def test_redaction_still_runs_before_the_model_through_the_api(client):
@@ -166,8 +166,8 @@ def test_redaction_still_runs_before_the_model_through_the_api(client):
 def test_family_privacy_routes_need_the_passphrase_but_the_parents_do_not(client):
     _check(client)
     signed_out = TestClient(main.app)
-    assert signed_out.get("/parents/michiko/export").status_code == 401
-    assert signed_out.delete("/parents/michiko/data?confirm=yes").status_code == 401
-    assert signed_out.delete("/parents/michiko/checks/x").status_code == 401
+    assert signed_out.get("/parents/margaret/export").status_code == 401
+    assert signed_out.delete("/parents/margaret/data?confirm=yes").status_code == 401
+    assert signed_out.delete("/parents/margaret/checks/x").status_code == 401
     assert signed_out.get("/api/my-data/export").status_code == 200  # the parent app's own routes stay public
     assert len(client.get("/api/my-data/export").json()["checks"]) == 1

@@ -35,7 +35,7 @@ def pipeline(settings, store, search):
     return Pipeline(settings, FakeLLMClient(), search, store)
 
 
-def sign_in(client, parent_id: str = "michiko", passphrase: str = "test-passphrase") -> str:
+def sign_in(client, parent_id: str = "margaret", passphrase: str = "test-passphrase") -> str:
     """Give ``parent_id`` a family passphrase and sign the TestClient in (session cookie + bearer header)."""
     from scamshield import main
 

@@ -223,7 +223,7 @@ class CheckRequest(BaseModel):
 
 
 class FamilyNotice(BaseModel):
-    name: str | None = None  # first name shown on the red screen ("Kenji has been told")
+    name: str | None = None  # first name shown on the red screen ("David has been told")
     notified: bool = False  # true once an alert really went out (a recorded, unsent alert stays false)
 
 

@@ -111,7 +111,7 @@ SEED = dict(load_seed_messages(Settings.from_env({}).seed_dir))
 def test_pipeline_in_degraded_mode_uses_only_nano_and_still_searches(store, search):
     settings = live_settings(BUDGET_DAILY_ULTRA_CALLS="0")
     llm = LiveFake()
-    r = Pipeline(settings, llm, search, store).analyze(SEED["m02"], "michiko", use_cache=False)
+    r = Pipeline(settings, llm, search, store).analyze(SEED["m02"], "margaret", use_cache=False)
     assert r.budget_mode == "degraded"
     assert {s.tier for s in r.trace.steps if s.kind == "model"} == {"fast"}
     assert set(llm.models) == {settings.model_for("fast")}
@@ -120,7 +120,7 @@ def test_pipeline_in_degraded_mode_uses_only_nano_and_still_searches(store, sear
 
 def test_pipeline_with_kill_switch_makes_no_paid_calls_and_says_so(store, search):
     llm = LiveFake()
-    r = Pipeline(live_settings(BUDGET_KILL_SWITCH="1"), llm, search, store).analyze(SEED["m02"], "michiko")
+    r = Pipeline(live_settings(BUDGET_KILL_SWITCH="1"), llm, search, store).analyze(SEED["m02"], "margaret")
     assert llm.models == [] and search.calls == []
     assert r.budget_mode == "killed" and r.verdict.degraded and r.verdict.label == "yellow"
     assert "ask your family" in r.verdict.safe_action.lower()
@@ -129,23 +129,23 @@ def test_pipeline_with_kill_switch_makes_no_paid_calls_and_says_so(store, search
 
 def test_kill_switch_never_calls_a_message_safe_even_when_everything_is_refused(store, search):
     p = Pipeline(live_settings(BUDGET_KILL_SWITCH="1"), LiveFake(), search, store)
-    r = p.analyze(RawMessage(body="Your parcel fee is unpaid, pay now", sender="212-555-0199"), "michiko")
+    r = p.analyze(RawMessage(body="Your parcel fee is unpaid, pay now", sender="212-555-0199"), "margaret")
     assert r.verdict.score >= 30
 
 
 def test_live_spend_is_booked_and_offline_spend_is_not(settings, store, search):
     live = Pipeline(live_settings(), LiveFake(), search, store)
-    live.analyze(SEED["m02"], "michiko", use_cache=False)
+    live.analyze(SEED["m02"], "margaret", use_cache=False)
     assert store.spend_total() > 0 and store.spend_today("reason")[0] == 1
     before = store.spend_total()
-    Pipeline(settings, FakeLLMClient(), search, store).analyze(SEED["m10"], "michiko", use_cache=False)
+    Pipeline(settings, FakeLLMClient(), search, store).analyze(SEED["m10"], "margaret", use_cache=False)
     assert store.spend_total() == before
 
 
 def test_total_cap_blocks_the_next_message(store, search):
     settings = live_settings(BUDGET_TOTAL_USD="0.001")
     p = Pipeline(settings, LiveFake(), search, store)
-    first = p.analyze(SEED["m02"], "michiko", use_cache=False)
+    first = p.analyze(SEED["m02"], "margaret", use_cache=False)
     assert first.budget_mode == "normal"
-    second = p.analyze(SEED["m10"], "michiko", use_cache=False)
+    second = p.analyze(SEED["m10"], "margaret", use_cache=False)
     assert second.budget_mode == "exhausted" and second.verdict.degraded

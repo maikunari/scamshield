@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     an.add_argument("--sender")
     an.add_argument("--channel", default="paste", choices=["sms", "email", "voicemail", "paste"])
     an.add_argument("--seed-id", help="analyze a seed message by id instead of --body")
-    an.add_argument("--no-profile", action="store_true", help="do not load the seed Michiko profile")
+    an.add_argument("--no-profile", action="store_true", help="do not load the seed Margaret profile")
     an.add_argument("--json", action="store_true", help="print the full AnalysisResult as JSON")
     wm = sub.add_parser("warm", help="analyze every seed message and pin the verdicts so they are free to replay")
     wm.add_argument("--db", help="database to warm (default: SCAMSHIELD_DB)")

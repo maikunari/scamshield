@@ -92,7 +92,7 @@ class Settings:
     rate_limit_per_window: int = 10
     rate_limit_window_seconds: int = 60
     trust_forwarded_for: bool = False
-    demo_parent_id: str = "michiko"  # parent the public /api/check endpoint analyses for
+    demo_parent_id: str = "margaret"  # parent the public /api/check endpoint analyses for
     web_dir: Path = REPO_ROOT / "web" / "out"  # Next.js static export, served at / when present
     # Family alerts (alerts.py). A channel without its credentials records the alert instead of sending it.
     telegram_bot_token: str | None = None
@@ -142,7 +142,7 @@ class Settings:
             kill_file=e.get("BUDGET_KILL_FILE") or None,
             rate_limit_per_window=int(e.get("RATE_LIMIT_PER_MINUTE") or defaults.rate_limit_per_window),
             trust_forwarded_for=_truthy(e.get("TRUST_FORWARDED_FOR")),
-            demo_parent_id=e.get("SCAMSHIELD_DEMO_PARENT") or "michiko",
+            demo_parent_id=e.get("SCAMSHIELD_DEMO_PARENT") or "margaret",
             web_dir=Path(e.get("SCAMSHIELD_WEB_DIR") or REPO_ROOT / "web" / "out"),
             telegram_bot_token=e.get("TELEGRAM_BOT_TOKEN") or None,
             telegram_webhook_secret=e.get("TELEGRAM_WEBHOOK_SECRET") or None,

@@ -48,7 +48,7 @@ def test_check_grandchild_scam_is_red_with_flags_and_family_name(client):
     assert data["red_flags"], "red screen needs red flags"
     assert all({"text", "evidence_url"} <= set(f) for f in data["red_flags"])
     assert data["safe_action"]
-    assert data["family"]["name"] == "Kenji"  # from the seed profile loaded for the demo parent
+    assert data["family"]["name"] == "David"  # from the seed profile loaded for the demo parent
     assert data["family"]["notified"] is False
     assert data["offline"] is True
     assert data["budget_mode"] == "normal"
@@ -60,14 +60,14 @@ def test_check_grandchild_scam_is_red_with_flags_and_family_name(client):
 def test_check_uses_demo_parent_memory_for_trusted_grandson(client):
     r = client.post(
         "/api/check",
-        json={"sender": "212-555-0102", "body": "Grandma it's Taro! The soccer game moved to Saturday at 2pm. Can you come?"},
+        json={"sender": "212-555-0102", "body": "Grandma it's Tom! The soccer game moved to Saturday at 2pm. Can you come?"},
     )
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["label"] == "green"
     assert data["red_flags"] == []
     assert data["contact"]["status"] == "trusted"
-    assert data["contact"]["name"] == "Taro Hayashi"
+    assert data["contact"]["name"] == "Tom Reed"
     assert data["contact"]["relationship"] == "grandson"
 
 
