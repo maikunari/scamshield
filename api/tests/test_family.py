@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from scamshield import main
 from scamshield.config import DEFAULT_FAMILY_PASSPHRASE
+from scamshield.models import AnalysisResult
 
 SCAM = "Grandma it's me, I had a car accident and need $3,000 for bail today. Please don't tell Mom. Buy gift cards and send me the codes."
 GATED = [
@@ -182,14 +183,46 @@ def test_load_demo_family_seeds_profile_checks_and_alerts(client):
     assert all(d["status"] == "recorded" for d in newest["alert"]["deliveries"])  # nothing was really sent
     assert acked["alert"]["acked_by"] == "David Reed" and acked["alert"]["acked_via"] == "telegram"
     assert checks[1]["alert"] is None  # yellow: no alert
-    assert newest["trace"]["model_calls"] == 3 and len(newest["trace"]["models"]) == 3
+    assert newest["trace"]["model_calls"] == 2 and len(newest["trace"]["models"]) == 2
     # safe messages are forgotten: hash and label only, because the family has not opted in to keeping them
     assert checks[2]["body_kept"] is False and checks[2]["snippet"] == ""
     assert checks[0]["body_kept"] is True and checks[0]["snippet"]
 
     full = client.get(f"/results/{newest['id']}").json()
     assert full["demo"] is True and full["verdict"]["family_points"]
-    assert [s["name"] for s in full["trace"]["steps"] if s["kind"] == "model"] == ["triage", "plan", "verdict"]
+    assert [s["name"] for s in full["trace"]["steps"] if s["kind"] == "model"] == ["triage", "verdict"]
+
+
+def test_demo_samples_name_the_models_the_check_uses_now(make_client):
+    c = make_client(MODEL_REASON="nvidia/Some-Future-Verdict-Model")
+    load_demo(c)
+    sign_in(c, "margaret", DEFAULT_FAMILY_PASSPHRASE)
+    model_steps = []
+    for check in c.get("/parents/margaret/checks").json():
+        full = c.get(f"/results/{check['id']}").json()
+        model_steps += [(s["name"], s["tier"], s["model"]) for s in full["trace"]["steps"] if s["kind"] == "model"]
+    assert {(name, tier) for name, tier, _ in model_steps} == {("triage", "fast"), ("verdict", "reason")}  # no Super planner
+    assert {model for name, _, model in model_steps if name == "triage"} == {"nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"}
+    assert {model for name, _, model in model_steps if name == "verdict"} == {"nvidia/Some-Future-Verdict-Model"}
+    assert not any("super" in model.lower() for _, _, model in model_steps)
+
+
+def test_load_demo_clears_the_demo_parents_verdict_cache_only(client):
+    load_demo(client)
+    sign_in(client, "margaret", DEFAULT_FAMILY_PASSPHRASE)
+    store = main.get_pipeline().store
+    body = {"sender": "212-555-0142", "body": SCAM}
+    first = client.post("/parents/margaret/analyze", json=body).json()
+    assert first["cached_from"] is None
+    assert client.post("/parents/margaret/analyze", json=body).json()["cached_from"] == first["id"]  # no model calls
+    store.verdict_cache_put("other-parents-key", AnalysisResult.model_validate(first | {"parent_id": "someone-else"}))
+
+    load_demo(client)
+    sign_in(client, "margaret", DEFAULT_FAMILY_PASSPHRASE)
+    again = client.post("/parents/margaret/analyze", json=body).json()
+    assert again["cached_from"] is None  # the models ran again
+    assert [s["name"] for s in again["trace"]["steps"] if s["kind"] == "model"] == ["triage", "verdict"]
+    assert store.verdict_cache_get("other-parents-key", 3600) is not None
 
 
 def test_load_demo_twice_resets_instead_of_duplicating(client):
