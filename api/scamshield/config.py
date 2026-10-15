@@ -65,6 +65,13 @@ def _truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _task_set(value: str | None, default: frozenset[str]) -> frozenset[str]:
+    if value is None or not value.strip():
+        return default
+    tasks = {t.strip().lower() for t in value.split(",") if t.strip()}
+    return frozenset() if tasks <= {"none", "off"} else frozenset(tasks)
+
+
 @dataclass(frozen=True)
 class Settings:
     nebius_api_key: str | None = None
@@ -79,6 +86,10 @@ class Settings:
     seed_dir: Path = REPO_ROOT / "seed"
     cache_ttl_seconds: int = 24 * 3600
     verdict_cache_ttl_seconds: int = 24 * 3600
+    # Model steps that keep the model's reasoning block (MODEL_THINKING: "triage", "verdict", both comma-separated,
+    # or "none"). Off by default: Nemotron then answers in a fraction of the time (live: Nano triage ~6 s -> ~1.5 s,
+    # Ultra verdict ~8 s -> ~3 s) with the same labels on the sample set.
+    thinking_tasks: frozenset[str] = frozenset()
     max_search_calls: int = 3
     max_extract_calls: int = 1
     # Budget guard (see budget.py). Spend is in USD as estimated in the trace.
@@ -130,6 +141,7 @@ class Settings:
             models={t: e.get(TIER_ENV[t]) or DEFAULT_MODELS[t] for t in TIERS},
             prices=prices,
             price_overrides=frozenset(overrides),
+            thinking_tasks=_task_set(e.get("MODEL_THINKING"), defaults.thinking_tasks),
             tavily_api_key=e.get("TAVILY_API_KEY") or None,
             tavily_cost_per_call=float(e.get("TAVILY_COST_PER_CALL") or DEFAULT_TAVILY_COST),
             force_offline=_truthy(e.get("SCAMSHIELD_OFFLINE")),

@@ -77,7 +77,9 @@ export function stepCopy(step: TraceStep, parentFirstName: string): StepCopy {
       return { title: "Triage", blurb: `${who} reads the message and marks the scam signals: urgency, money, impersonation.` };
     case "memory":
       return { title: `Check ${parentFirstName}'s memory`, blurb: "Compares the sender with her trusted contacts and the services she uses." };
-    case "plan":
+    case "quick_check":
+      return { title: "Early answer", blurb: "A well-known scam script or a trusted contact, shown at once while the full check ran." };
+    case "plan": // older checks: a model chose the lookups before they became a fixed plan
       return { title: "Plan the evidence search", blurb: `${who} chooses what is worth looking up.` };
     case "verdict":
       return { title: "Decide and explain", blurb: `${who} weighs everything and writes the verdict, the red flags and the notes for the family.` };

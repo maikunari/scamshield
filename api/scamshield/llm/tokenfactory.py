@@ -119,7 +119,7 @@ class TokenFactoryClient:
             modes.insert(0, "json_schema")
         for mode in modes:
             try:
-                payload = self._post(self._body(request.model, messages, mode, request.schema, request.task))
+                payload = self._post(self._body(request.model, messages, mode, request.schema, request.task, request.thinking))
             except LLMHTTPError as exc:
                 last_error = exc
                 if mode == "json_schema" and exc.status in (400, 422):
@@ -143,7 +143,7 @@ class TokenFactoryClient:
                 {"role": "system", "content": REPAIR_SYSTEM.format(schema=json.dumps(request.schema or {}))},
                 {"role": "user", "content": last_content[:6000]},
             ]
-            payload = self._post(self._body(request.model, repair, "json_object", None, request.task))
+            payload = self._post(self._body(request.model, repair, "json_object", None, request.task, request.thinking))
             content, usage, served_model = self._unpack(payload, request.model)
             tokens_in += usage[0]
             tokens_out += usage[1]
@@ -172,8 +172,10 @@ class TokenFactoryClient:
 
     # --- internals --------------------------------------------------------------------------------
     @staticmethod
-    def _body(model: str, messages: list[dict], mode: str, schema: dict | None, task: str) -> dict:
+    def _body(model: str, messages: list[dict], mode: str, schema: dict | None, task: str, thinking: bool = True) -> dict:
         body: dict = {"model": model, "messages": messages, "temperature": 0}
+        if not thinking:
+            body["chat_template_kwargs"] = {"enable_thinking": False}
         if mode == "json_schema" and schema:
             body["response_format"] = {
                 "type": "json_schema",

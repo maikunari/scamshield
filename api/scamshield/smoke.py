@@ -20,7 +20,7 @@ from .runtime import load_profile, load_seed_messages
 from .search.tavily import TavilyClient
 
 PROBE_TIERS = ("fast", "mid", "reason")  # Nano, Super, Ultra
-SEED_ID = "m02"  # the delivery-fee SMS: a phone-less link scam that exercises triage, plan, search and verdict
+SEED_ID = "m02"  # the delivery-fee SMS: a phone-less link scam that exercises triage, search and verdict
 
 
 class SmokeUnavailable(RuntimeError):
@@ -86,10 +86,10 @@ def run_smoke(
     model_steps = {s.name: s for s in steps if s.kind == "model"}
     checks.append(Check("pipeline not offline", not result.offline, "live Token Factory + Tavily" if not result.offline else "fakes in use"))
     checks.append(Check("no step errors", not any(s.error for s in steps), "; ".join(f"{s.name}: {s.error}" for s in steps if s.error)))
-    checks.append(Check("triage, plan and verdict ran", set(model_steps) >= {"triage", "plan", "verdict"}, ", ".join(model_steps)))
+    checks.append(Check("triage and verdict ran", set(model_steps) >= {"triage", "verdict"}, ", ".join(model_steps)))
     checks.append(Check("tokens and cost recorded", all(s.tokens_in > 0 and s.cost_usd > 0 for s in model_steps.values()) and bool(model_steps), f"${result.trace.total_cost_usd:.5f}, {result.trace.total_tokens} tokens"))
     tiers = [s.tier for s in model_steps.values()]
-    checks.append(Check("routed Nano -> Super -> Ultra", tiers == ["fast", "mid", "reason"], " -> ".join(f"{s.tier}:{s.model}" for s in model_steps.values())))
+    checks.append(Check("routed Nano -> Ultra", tiers == ["fast", "reason"], " -> ".join(f"{s.tier}:{s.model}" for s in model_steps.values())))
     tavily = [s for s in steps if s.name.startswith("tavily:") and "cache hit" not in s.detail]
     checks.append(Check("Tavily searched", bool(tavily) and not any(s.error for s in tavily), f"{len(tavily)} live call(s)"))
     checks.append(Check(f"{seed_id} scored as a scam", result.verdict.label == "red", f"{result.verdict.label} ({result.verdict.score})"))

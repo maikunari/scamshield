@@ -5,7 +5,7 @@
     ... python scripts/smoke.py --seed-id m10 --json     # another seed message, full result as JSON
 
 Checks that the default Nemotron ids are listed (case-insensitive), that Nano, Super and Ultra each honour
-response_format=json_schema, and that one seed message runs end to end (triage, plan, Tavily, verdict) with tokens and
+response_format=json_schema, and that one seed message runs end to end (triage, Tavily, verdict) with tokens and
 cost in the trace. Costs a few cents. Uses a throwaway in-memory database, so no cache or budget state is touched.
 """
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckError, checkMessage } from "@/lib/api";
+import { CheckError, checkMessageLive } from "@/lib/api";
 import type { Example } from "@/lib/examples";
+import { advance, START, type Progress } from "@/lib/progress";
 import type { CheckResponse } from "@/lib/types";
 import { CheckForm } from "./CheckForm";
 import { VerdictScreen } from "./VerdictScreen";
@@ -24,6 +25,7 @@ export function CheckApp() {
   const [body, setBody] = useState("");
   const [sender, setSender] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<Progress>(START);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "form" });
   const inflight = useRef<AbortController | null>(null);
@@ -34,8 +36,15 @@ export function CheckApp() {
     inflight.current = controller;
     setBusy(true);
     setError(null);
+    setProgress(START);
     try {
-      const result = await checkMessage({ body: text, sender: from.trim() || null, channel: "paste" }, controller.signal);
+      const result = await checkMessageLive(
+        { body: text, sender: from.trim() || null, channel: "paste" },
+        (e) => {
+          if (!controller.signal.aborted) setProgress((p) => advance(p, e));
+        },
+        controller.signal,
+      );
       if (!controller.signal.aborted) setPhase({ kind: "result", result });
     } catch (err) {
       if (controller.signal.aborted) return;
@@ -84,6 +93,7 @@ export function CheckApp() {
       body={body}
       sender={sender}
       busy={busy}
+      progress={progress}
       error={error}
       onBodyChange={setBody}
       onSenderChange={setSender}

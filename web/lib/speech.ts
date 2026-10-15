@@ -4,6 +4,23 @@ export function speechSupported(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
 }
 
+/**
+ * Calls `onChange(hasVoices)` now and again whenever the browser's voice list changes. Browsers load voices
+ * asynchronously (the list is often empty at first), and some devices have none at all, so a read-aloud button
+ * waits for this instead of trusting `speechSupported()`. Returns a cleanup function.
+ */
+export function watchVoices(onChange: (hasVoices: boolean) => void): () => void {
+  if (!speechSupported()) {
+    onChange(false);
+    return () => {};
+  }
+  const synth = window.speechSynthesis;
+  const check = () => onChange(synth.getVoices().length > 0);
+  check();
+  synth.addEventListener("voiceschanged", check);
+  return () => synth.removeEventListener("voiceschanged", check);
+}
+
 export function stopSpeaking(): void {
   if (speechSupported()) window.speechSynthesis.cancel();
 }

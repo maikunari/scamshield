@@ -1,4 +1,5 @@
-"""The analyze pipeline: normalize -> verdict cache -> redact -> triage -> memory -> evidence -> verdict -> persist.
+"""The analyze pipeline: normalize -> verdict cache -> redact -> memory -> quick check -> triage + evidence (at the
+same time) -> verdict -> persist.
 
 Every step appends to a per-message ``Trace`` (model, tokens, latency, cost at the listed Token Factory prices)
 stored with the result. A repeat of the same message (same parent profile, same models) is answered from the
@@ -10,6 +11,9 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
+from collections.abc import Iterator
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import TimeoutError as FutureTimeout
 from datetime import datetime, timezone
 
 from pydantic import ValidationError
@@ -34,11 +38,15 @@ from .models import (
 )
 from .normalize import domain_of, normalize
 from .planning import candidates_for, default_plan, validate_plan
+from .quick import QuickAnswer, quick_check
 from .redact import redact
 from .search.base import SearchClient
 from .skills import SKILLS, EvidenceDesk
 
 SNIPPET_CHARS = 300
+EXTRACT_GRACE_SECONDS = 1.5  # how long the verdict waits for the report page once every lookup is in
+# Hosts whose pages Tavily extract cannot read (login walls): an extract there only costs time.
+NO_EXTRACT_HOSTS = ("facebook.com", "instagram.com", "x.com", "twitter.com", "tiktok.com", "youtube.com", "linkedin.com")
 EXCERPT_CHARS = 1200
 MAX_FAMILY_POINTS = 4
 VERDICT_FORMAT = "family-points"  # part of the verdict cache key: a cached verdict in an older shape is not replayed
@@ -78,6 +86,24 @@ class Pipeline:
     def analyze(self, raw: RawMessage, parent_id: str, *, use_cache: bool = True, pin: bool = False) -> AnalysisResult:
         """Analyze one message. ``use_cache=False`` forces a fresh run; ``pin=True`` stores the verdict with no
         expiry (``scamshield warm`` does this for the seed messages so the demo costs nothing)."""
+        for event in self.analyze_steps(raw, parent_id, use_cache=use_cache, pin=pin):
+            if event["type"] == "result":
+                return event["result"]
+        raise RuntimeError("the analysis ended without a result")
+
+    def analyze_steps(
+        self, raw: RawMessage, parent_id: str, *, use_cache: bool = True, pin: bool = False
+    ) -> Iterator[dict]:
+        """``analyze`` as a stream of progress events, for the parent screen to show while it works:
+
+        * ``{"type": "step", "step": "reading" | "searching" | "deciding"}``
+        * ``{"type": "step", "step": "found", "count": n}``: distinct public reports the lookups found
+        * ``{"type": "quick", "label": "red" | "green", "reason": str}``: an instant preview (``quick.py``)
+        * ``{"type": "result", "result": AnalysisResult}``: always last
+
+        Triage runs at the same time as the lookups that do not need it (the message's links and phone numbers);
+        the phrase lookup starts as soon as triage has picked the phrase.
+        """
         profile = self.store.get_profile(parent_id) or Profile(id=parent_id, name=parent_id)
         trace = Trace()
 
@@ -87,8 +113,10 @@ class Pipeline:
 
         key = self.cache_key(message, profile)
         if use_cache and (cached := self.store.verdict_cache_get(key, self.settings.verdict_cache_ttl_seconds)):
-            return self._serve_cached(cached, message, trace, profile, parent_id)
+            yield {"type": "result", "result": self._serve_cached(cached, message, trace, profile, parent_id)}
+            return
 
+        yield {"type": "step", "step": "reading"}
         mode = self.budget.status()
         if mode.mode != NORMAL:
             trace.steps.append(TraceStep(name="budget", detail=f"{mode.mode}: {mode.reason}"))
@@ -97,22 +125,51 @@ class Pipeline:
             redacted = redact(message.body)
             step.detail = f"redacted {redacted.total} item(s) {redacted.counts}" if redacted.total else "nothing to redact"
 
-        triage = self._triage(message, redacted.text, trace)
-        triage_ok = not any(s.name == "triage" and s.error for s in trace.steps)
-
         with _timed(trace, "memory") as step:
             contact = compare_to_contacts(profile, message)
             step.detail = f"{contact.status}: {contact.reason}"
 
+        if quick := quick_check(message, contact):
+            trace.steps.append(TraceStep(name="quick_check", detail=f"{quick.label} preview: {quick.reason}"))
+            yield {"type": "quick", "label": quick.label, "reason": quick.reason}
+
         lookups: list[Lookup] = []
-        fast = self._fast_path_note(triage, contact, profile, message)
-        if fast:
-            verdict = self._fast_verdict(triage, contact, fast)
-            trace.steps.append(TraceStep(name="fast_path", detail=f"{fast}: skipped evidence and verdict model"))
-        else:
-            if triage.risk != "none":
-                lookups = self._gather_evidence(message, redacted.text, triage, contact, trace)
-            verdict = self._verdict(message, redacted.text, triage, contact, lookups, profile, trace, triage_ok)
+        # Not a ``with`` block: a report page still loading when the lookups are done is left behind, not waited for.
+        pool = ThreadPoolExecutor(max_workers=self.settings.max_search_calls + 2)
+        try:
+            triage_job = pool.submit(self._triage, message, redacted.text, trace)
+            desk = EvidenceDesk(self.search, self.store, self.settings, trace, self.budget)
+            candidates = candidates_for(message.urls, message.phones, message.sender, contact.status != "unknown")
+            jobs: dict[tuple[str, str], Future[Lookup]] = {}
+            early_phrase = quick.phrase if quick else None
+            if contact.status == "unknown":
+                # Links and numbers need no model to be looked up, nor does a known scam script's wording: start now.
+                # Without that wording, keep a slot for triage's phrase.
+                early = self._plan(message, candidates, early_phrase)
+                self._start_lookups(pool, desk, early if early_phrase else early[: self.settings.max_search_calls - 1], jobs)
+                if jobs:
+                    yield {"type": "step", "step": "searching"}
+
+            triage = triage_job.result()
+            triage_ok = not any(s.name == "triage" and s.error for s in trace.steps)
+            fast = self._fast_path_note(triage, contact, profile, message, quick)
+            if fast:
+                wait(jobs.values())  # nothing may still be writing to the trace once the result is built
+                verdict = self._fast_verdict(triage, contact, fast)
+                trace.steps.append(TraceStep(name="fast_path", detail=f"{fast}: skipped evidence and verdict model"))
+            else:
+                searching = bool(jobs)
+                plan = self._plan(message, candidates, early_phrase or triage.key_phrase)
+                self._start_lookups(pool, desk, plan, jobs)
+                if jobs and not searching:
+                    yield {"type": "step", "step": "searching"}
+                lookups = self._collect(pool, jobs, message, trace)
+                if lookups:
+                    yield {"type": "step", "step": "found", "count": len({h.url for lk in lookups for h in lk.hits})}
+                yield {"type": "step", "step": "deciding"}
+                verdict = self._verdict(message, redacted.text, triage, contact, lookups, profile, trace, triage_ok)
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
         result = AnalysisResult(
             id=uuid.uuid4().hex[:12],
@@ -131,7 +188,7 @@ class Pipeline:
         # Only a clean, full-strength run is worth replaying: never cache a degraded or failed answer.
         if mode.mode == NORMAL and not verdict.degraded and not any(s.error for s in trace.steps):
             self.store.verdict_cache_put(key, _cacheable(result, profile), pinned=pin)
-        return result
+        yield {"type": "result", "result": result}
 
     def _serve_cached(
         self, cached: AnalysisResult, message: Message, trace: Trace, profile: Profile, parent_id: str
@@ -173,8 +230,12 @@ class Pipeline:
             # Fail toward caution: unknown risk is treated as medium so evidence and verdict still run.
             return Triage(risk="medium", summary="triage unavailable; treated as medium risk")
 
-    def _fast_path_note(self, triage: Triage, contact: ContactMatch, profile: Profile, message: Message) -> str | None:
+    def _fast_path_note(
+        self, triage: Triage, contact: ContactMatch, profile: Profile, message: Message, quick: QuickAnswer | None = None
+    ) -> str | None:
         sig = triage.signals
+        if quick and quick.label == "red":
+            return None  # a known scam script always gets the full check, whatever triage thought
         if triage.risk == "none" and not contact.lookalike_of:
             return "no risk signals"
         if contact.status == "trusted" and not (sig.money_request or sig.secrecy_request):
@@ -198,46 +259,53 @@ class Pipeline:
         )
 
     # --- evidence ---------------------------------------------------------------------------------
-    def _gather_evidence(
-        self, message: Message, body: str, triage: Triage, contact: ContactMatch, trace: Trace
+    def _plan(self, message: Message, candidates: dict, key_phrase: str | None) -> list[dict]:
+        """The lookups for this message, most informative first: the first link, the first number, triage's phrase,
+        then the rest, at most ``max_search_calls``. Deterministic: a model call to plan them cost ~1-2 s and
+        picked the same lookups."""
+        return validate_plan(
+            {"lookups": default_plan(candidates, key_phrase)}, candidates, message.body, self.settings.max_search_calls
+        )
+
+    @staticmethod
+    def _start_lookups(
+        pool: ThreadPoolExecutor, desk: EvidenceDesk, plan: list[dict], jobs: dict[tuple[str, str], Future[Lookup]]
+    ) -> None:
+        for item in plan:
+            if (item["skill"], item["value"]) not in jobs:
+                jobs[(item["skill"], item["value"])] = pool.submit(SKILLS[item["skill"]], desk, item["value"])
+
+    def _collect(
+        self, pool: ThreadPoolExecutor, jobs: dict[tuple[str, str], Future[Lookup]], message: Message, trace: Trace
     ) -> list[Lookup]:
-        limit = self.settings.max_search_calls
-        candidates = candidates_for(message.urls, message.phones, message.sender, contact.status != "unknown")
-        plan: list[dict] = []
-        if candidates["urls"] or candidates["phones"] or triage.key_phrase:
+        """Wait for the lookups. Meanwhile spend the one allowed Tavily extract on the first report page a lookup
+        returns, so the verdict reads more than a snippet; once the last lookup is in, the page gets only
+        ``EXTRACT_GRACE_SECONDS`` more and is left out if it is still loading (it is cached for next time)."""
+        page: tuple[str, Future[tuple[str, list[TraceStep]]]] | None = None
+        for job in as_completed(jobs.values()):
+            if page is None and self.settings.max_extract_calls > 0 and (url := _page_to_read(job.result(), message)):
+                page = (url, pool.submit(self._read_page, url))
+        lookups = [job.result() for job in jobs.values()]
+        if page:
+            url, reading = page
             try:
-                resp = self.router.call(
-                    "plan",
-                    prompts.PLAN_SYSTEM,
-                    prompts.plan_user(body, triage.model_dump(), candidates),
-                    {"message": message.model_dump(), "triage": triage.model_dump(), "candidates": candidates},
-                    trace,
+                text, steps = reading.result(timeout=EXTRACT_GRACE_SECONDS)
+            except FutureTimeout:
+                trace.steps.append(
+                    TraceStep(name="tavily:extract", kind="tool", detail=f"not used: page still loading after the lookups | q={url}")
                 )
-                plan = validate_plan(resp.data, candidates, message.body, limit)
-            except LLMError as exc:
-                _mark_error(trace, "plan", exc)
-            if not plan:  # planner failed or proposed nothing usable
-                plan = validate_plan({"lookups": default_plan(candidates, triage.key_phrase)}, candidates, message.body, limit)
-
-        desk = EvidenceDesk(self.search, self.store, self.settings, trace, self.budget)
-        lookups = [SKILLS[item["skill"]](desk, item["value"]) for item in plan]
-        self._extract_top_source(desk, lookups, message)
-        return lookups
-
-    def _extract_top_source(self, desk: EvidenceDesk, lookups: list[Lookup], message: Message) -> None:
-        """Spend the one allowed Tavily extract on the best evidence page, so the verdict reads more than a snippet.
-        Only pages that a search returned are read; a page on a domain the message itself links to never is."""
-        if desk.extract_left <= 0:
-            return
-        message_hosts = {domain_of(u) for u in message.urls}
-        for lk in lookups:
-            for hit in lk.hits:
-                if domain_of(hit.url) in message_hosts:
-                    continue
-                text = desk.extract(hit.url)
+            else:
+                trace.steps.extend(steps)
+                hit = next(h for lk in lookups for h in lk.hits if h.url == url)
                 if len(text) > len(hit.content):
                     hit.excerpt = text
-                return
+        return lookups
+
+    def _read_page(self, url: str) -> tuple[str, list[TraceStep]]:
+        """One Tavily extract, traced on its own so a page that arrives too late never touches the message's trace."""
+        steps = Trace()
+        text = EvidenceDesk(self.search, self.store, self.settings, steps, self.budget).extract(url)
+        return text, steps.steps
 
     # --- verdict ----------------------------------------------------------------------------------
     def _verdict(
@@ -394,6 +462,17 @@ def default_family_points(triage: Triage, flags: list[RedFlag], degraded: bool =
         "Tell her not to reply, click, pay or call back.",
         "If it names someone she knows, call that person on the number she already has.",
     ]
+
+
+def _page_to_read(lookup: Lookup, message: Message) -> str | None:
+    """The first report page of a lookup worth one extract: never a page on a domain the message itself links to."""
+    message_hosts = {domain_of(u) for u in message.urls}
+    for hit in lookup.hits:
+        host = domain_of(hit.url)
+        if host in message_hosts or any(host == h or host.endswith("." + h) for h in NO_EXTRACT_HOSTS):
+            continue
+        return hit.url
+    return None
 
 
 def _cacheable(result: AnalysisResult, profile: Profile) -> AnalysisResult:

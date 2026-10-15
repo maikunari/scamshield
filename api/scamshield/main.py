@@ -4,6 +4,7 @@ Routes:
 
 * ``POST /api/check`` - the parent ``/check`` page. Takes a pasted or shared message, runs the
   pipeline for the demo parent and returns only what the parent screen shows (no family script).
+  ``POST /api/check/stream`` is the same check with live progress (server-sent events); the page uses it.
 * ``PUT /parents/{id}/profile``, ``POST /parents/{id}/analyze``, ``GET /results/{id}``, ``GET /budget`` -
   full pipeline access for the family side and tests.
 * ``/`` - the Next.js static export in ``web/out`` (``SCAMSHIELD_WEB_DIR``) when it exists, so one
@@ -25,14 +26,16 @@ Both analyze routes share the per-IP rate limit.
 from __future__ import annotations
 
 import html
-from collections.abc import AsyncIterator
+import json
+import logging
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 from weakref import WeakKeyDictionary
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -47,6 +50,8 @@ from .ratelimit import RateLimiter, client_ip
 from .runtime import build_pipeline, load_profile
 
 MAX_CHECK_CHARS = 8000
+
+log = logging.getLogger("scamshield.api")
 
 
 
@@ -273,17 +278,48 @@ def to_check_response(result: AnalysisResult, profile: Profile | None, alert: Al
     )
 
 
-@app.post("/api/check")
-def check(req: CheckRequest, request: Request) -> CheckResponse:
+def _check_raw(req: CheckRequest, request: Request) -> tuple[Pipeline, str, RawMessage]:
     if not req.body.strip():
         raise HTTPException(422, "message is empty")
     pipeline = get_pipeline()
     enforce_rate_limit(request, pipeline)
-    parent_id = pipeline.settings.demo_parent_id
     raw = RawMessage(body=req.body, sender=req.sender or None, channel=req.channel, subject=req.subject)
-    result = pipeline.analyze(raw, parent_id)
+    return pipeline, pipeline.settings.demo_parent_id, raw
+
+
+def _finish_check(pipeline: Pipeline, parent_id: str, result: AnalysisResult) -> CheckResponse:
     profile = pipeline.store.get_profile(parent_id)
     return to_check_response(result, profile, get_alerts().dispatch(result, profile))
+
+
+@app.post("/api/check")
+def check(req: CheckRequest, request: Request) -> CheckResponse:
+    pipeline, parent_id, raw = _check_raw(req, request)
+    return _finish_check(pipeline, parent_id, pipeline.analyze(raw, parent_id))
+
+
+@app.post("/api/check/stream")
+def check_stream(req: CheckRequest, request: Request) -> StreamingResponse:
+    """``/api/check`` with live progress, as server-sent events (one JSON object per ``data:`` line): the pipeline's
+    ``step`` and ``quick`` events while it works, then ``{"type": "result", "result": <CheckResponse>}``, or
+    ``{"type": "error"}`` if it failed after the stream began. Validation and the rate limit answer with a plain
+    HTTP status before any event."""
+    pipeline, parent_id, raw = _check_raw(req, request)
+
+    def events() -> Iterator[str]:
+        try:
+            for event in pipeline.analyze_steps(raw, parent_id):
+                if event["type"] == "result":
+                    event = {"type": "result", "result": _finish_check(pipeline, parent_id, event["result"]).model_dump(mode="json")}
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception:
+            log.exception("streamed check failed")
+            yield 'data: {"type": "error"}\n\n'
+
+    # no-cache and X-Accel-Buffering keep proxies (Caddy, nginx) from holding the events back.
+    return StreamingResponse(
+        events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
 
 
 # --- privacy: export and delete -----------------------------------------------------------------------

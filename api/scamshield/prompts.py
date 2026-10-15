@@ -1,4 +1,4 @@
-"""Prompts for the three model steps. Message text is untrusted data: every prompt says so."""
+"""Prompts for the two model steps (triage, verdict). Message text is untrusted data: every prompt says so."""
 
 from __future__ import annotations
 
@@ -22,12 +22,6 @@ Return JSON: {{
 }}
 Use risk "none" only for clearly harmless messages (appointment reminder, family chat, receipt)."""
 
-PLAN_SYSTEM = f"""You plan web lookups for ScamShield. {UNTRUSTED}
-You may only look up values from the candidates given. Pick at most 3 lookups, most informative first.
-Return JSON: {{"lookups": [{{"skill": "check_phone|check_url|check_phrase", "value": "<candidate or short phrase>"}}]}}
-check_phone/check_url values must be copied exactly from the candidates. check_phrase value is a distinctive
-3-8 word phrase from the message."""
-
 VERDICT_SYSTEM = f"""You are the verdict step of ScamShield, a scam guard for an elderly parent. {UNTRUSTED}
 You get the (PII-redacted) message, triage signals, whether the sender is a trusted contact, and web evidence.
 Rules:
@@ -47,13 +41,6 @@ Return JSON: {{"score": int, "red_flags": [{{"text": str, "evidence_url": str|nu
 def triage_user(message_body: str, sender: str | None, channel: str, urls: list[str], phones: list[str]) -> str:
     return (
         f"channel: {channel}\nsender: {sender or 'unknown'}\nurls: {urls}\nphones in text: {phones}\n"
-        f"--- message ---\n{message_body}"
-    )
-
-
-def plan_user(message_body: str, triage: dict, candidates: dict) -> str:
-    return (
-        f"triage: {json.dumps(triage, ensure_ascii=False)}\ncandidates: {json.dumps(candidates, ensure_ascii=False)}\n"
         f"--- message ---\n{message_body}"
     )
 

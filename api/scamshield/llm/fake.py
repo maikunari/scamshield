@@ -1,4 +1,4 @@
-"""Deterministic offline stand-in for the three model tiers.
+"""Deterministic offline stand-in for the model tiers.
 
 It answers from the structured ``request.context`` with keyword heuristics (English + Japanese). It exists so the
 pipeline, tests and eval run end-to-end without a key; it is NOT a measure of model quality. Token counts are
@@ -11,7 +11,6 @@ import json
 import re
 import time
 
-from ..planning import default_plan
 from .base import LLMRequest, LLMResponse
 
 I = re.IGNORECASE
@@ -156,10 +155,6 @@ def heuristic_triage(message: dict) -> dict:
     }
 
 
-def heuristic_plan(ctx: dict) -> dict:
-    return {"lookups": default_plan(ctx["candidates"], ctx["triage"].get("key_phrase"))[:3]}
-
-
 def _first_hit_url(lookups: list[dict], skill: str) -> str | None:
     for lk in lookups:
         if lk["skill"] == skill and lk["hits"]:
@@ -234,8 +229,6 @@ class FakeLLMClient:
         if request.task == "triage":
             data = heuristic_triage(ctx["message"])
             data.pop("_points", None)
-        elif request.task == "plan":
-            data = heuristic_plan(ctx)
         elif request.task == "verdict":
             data = heuristic_verdict(ctx)
         else:

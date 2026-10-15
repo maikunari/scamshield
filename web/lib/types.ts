@@ -26,3 +26,11 @@ export interface CheckRequest {
   channel?: "sms" | "email" | "voicemail" | "paste";
   subject?: string | null;
 }
+
+/** One server-sent event from `POST /api/check/stream` (see `Pipeline.analyze_steps` in api/scamshield/pipeline.py). */
+export type CheckEvent =
+  | { type: "step"; step: "reading" | "searching" | "deciding" }
+  | { type: "step"; step: "found"; count: number }
+  | { type: "quick"; label: "red" | "green"; reason: string }
+  | { type: "result"; result: CheckResponse }
+  | { type: "error" };

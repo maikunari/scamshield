@@ -14,7 +14,7 @@ class LLMBlocked(LLMError):
 
 @dataclass
 class LLMRequest:
-    task: str  # "triage" | "plan" | "verdict"
+    task: str  # "triage" | "verdict"
     model: str
     system: str
     user: str
@@ -22,6 +22,8 @@ class LLMRequest:
     context: dict[str, Any] = field(default_factory=dict)
     # JSON Schema of the reply. Real clients send it as ``response_format`` and repeat it in the prompt.
     schema: dict[str, Any] | None = None
+    # False asks the model to answer without a reasoning block (Nemotron ``enable_thinking``): much faster.
+    thinking: bool = True
 
 
 @dataclass

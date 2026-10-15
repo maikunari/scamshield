@@ -7,7 +7,7 @@ ids case-insensitively. Prices are USD per 1M tokens.
 | Env var | Role | Default id | In | Out | Context |
 |---|---|---|---|---|---|
 | `MODEL_FAST` | triage (Nemotron Nano) | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | 0.06 | 0.24 | 262k |
-| `MODEL_MID` | lookup planning (Nemotron Super) | `nvidia/nemotron-3-super-120b-a12b` | 0.30 | 0.90 | 256k |
+| `MODEL_MID` | Nemotron Super; probed by `make smoke`, no longer on the check path (lookups follow a fixed plan) | `nvidia/nemotron-3-super-120b-a12b` | 0.30 | 0.90 | 256k |
 | `MODEL_REASON` | verdict (Nemotron Ultra) | `nvidia/Nemotron-3-Ultra-550b-a55b` | 1.00 | 3.00 | 1024k |
 | `MODEL_LONG` | digest, long context (Nemotron 3.5 Lightning); not used by the pipeline yet | `nvidia/Nemotron-3_5-Lightning` | 0.06 | 0.24 | 1024k |
 
