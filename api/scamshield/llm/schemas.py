@@ -64,7 +64,7 @@ PLAN_SCHEMA = {
 VERDICT_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["score", "red_flags", "safe_action", "family_script"],
+    "required": ["score", "red_flags", "safe_action", "family_points"],
     "properties": {
         "score": {"type": "integer", "minimum": 0, "maximum": 100},
         "red_flags": {
@@ -77,7 +77,7 @@ VERDICT_SCHEMA = {
             },
         },
         "safe_action": {"type": "string"},
-        "family_script": {"type": "string"},
+        "family_points": {"type": "array", "items": {"type": "string"}},
     },
 }
 

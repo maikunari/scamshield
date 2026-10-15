@@ -126,7 +126,7 @@ def test_schemas_are_strict_and_cover_every_pydantic_field():
     assert set(TRIAGE_SCHEMA["required"]) == set(TRIAGE_SCHEMA["properties"]) == {"signals", "risk", "scam_type", "key_phrase", "language", "summary"} <= set(Triage.model_fields)
     sig = TRIAGE_SCHEMA["properties"]["signals"]
     assert set(sig["required"]) == set(sig["properties"]) == set(Signals.model_fields)
-    assert set(VERDICT_SCHEMA["required"]) == {"score", "red_flags", "safe_action", "family_script"}
+    assert set(VERDICT_SCHEMA["required"]) == {"score", "red_flags", "safe_action", "family_points"}
     assert set(SCHEMAS) == {"triage", "plan", "verdict"}
     for schema in SCHEMAS.values():
         assert schema["additionalProperties"] is False

@@ -1,10 +1,12 @@
 /* ScamShield family dashboard + landing. Same tokens as the parent app (app/globals.css): calm paper, navy ink,
    Atkinson Hyperlegible. The adult child reads this on a phone or a laptop, so the base type is 18px, not 22px,
-   and every control is at least 44px tall. Colour is never the only signal: verdicts carry an icon and a word. */
+   and every control is at least 44px tall. Colour is never the only signal: verdicts carry an icon and a word.
+   Surfaces are quiet: hairline borders, no drop shadows, colour kept for the verdict and the one thing to act on. */
 
 .fam {
   --card: #fffdf9;
-  --card-line: #ddd4c3;
+  --card-line: #e3dacb;
+  --line-strong: #cfc4b1;
   --red-bg: #fbe9e7;
   --red-ink: #8a1717;
   --amber-bg: #fff2cf;
@@ -23,7 +25,6 @@
   --tool-ink: #14543f;
   --local-bg: #ece6d8;
   --local-ink: #4c505b;
-  --shadow: 0 1px 2px rgba(31, 58, 95, 0.06), 0 8px 24px -16px rgba(31, 58, 95, 0.28);
 
   font-size: 1.125rem;
   line-height: 1.5;
@@ -52,15 +53,17 @@
 
 .fam h2 {
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 700;
+  letter-spacing: -0.015em;
 }
 
 .fam h3 {
-  font-size: 1.2rem;
-  font-weight: 800;
+  font-size: 1.15rem;
+  font-weight: 700;
 }
 
 .fam h4 {
+  margin: 0;
   font-size: 1.05rem;
   font-weight: 700;
 }
@@ -92,8 +95,8 @@
   gap: 10px;
   min-height: 48px;
   padding: 10px 20px;
-  border-radius: 14px;
-  border: 2px solid transparent;
+  border-radius: 12px;
+  border: 1px solid transparent;
   font-weight: 700;
   font-size: 1.05rem;
   line-height: 1.2;
@@ -139,7 +142,7 @@
 
 .fbtn--quiet {
   background: var(--card);
-  border-color: var(--card-line);
+  border-color: var(--line-strong);
   color: var(--navy-deep);
 }
 
@@ -192,11 +195,9 @@
 
 .ftabs {
   display: flex;
-  gap: 6px;
-  padding: 6px;
-  background: var(--paper-2);
-  border-radius: 18px;
-  margin-bottom: 20px;
+  gap: 4px;
+  border-bottom: 1px solid var(--card-line);
+  margin-bottom: 24px;
   overflow-x: auto;
 }
 
@@ -207,10 +208,11 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 48px;
+  min-height: 50px;
   padding: 8px 16px;
-  border-radius: 13px;
   border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   background: transparent;
   color: var(--ink-soft);
   font-weight: 700;
@@ -218,9 +220,13 @@
   cursor: pointer;
 }
 
+.ftab:hover {
+  color: var(--navy-deep);
+}
+
 .ftab svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 @media (max-width: 440px) {
@@ -234,19 +240,19 @@
 }
 
 .ftab[aria-selected="true"] {
-  background: var(--card);
   color: var(--navy-deep);
-  box-shadow: var(--shadow);
+  border-bottom-color: var(--navy-deep);
 }
 
 .ftab .count {
-  min-width: 24px;
-  padding: 1px 8px;
+  min-width: 22px;
+  padding: 0 7px;
   border-radius: 99px;
   background: var(--red);
   color: #fff;
-  font-size: 0.85rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- cards + chips ---------- */
@@ -254,33 +260,32 @@
 .card {
   background: var(--card);
   border: 1px solid var(--card-line);
-  border-radius: 20px;
-  padding: 18px;
-  box-shadow: var(--shadow);
+  border-radius: 16px;
+  padding: 20px;
 }
 
 .card > h3 {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .card > h3 svg {
-  width: 24px;
-  height: 24px;
-  color: var(--navy);
+  width: 22px;
+  height: 22px;
+  color: var(--ink-soft);
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 10px;
+  padding: 1px 9px;
   border-radius: 99px;
-  font-size: 0.88rem;
-  font-weight: 700;
-  line-height: 1.5;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.55;
   white-space: nowrap;
   background: var(--local-bg);
   color: var(--local-ink);
@@ -336,7 +341,7 @@
   gap: 12px;
   align-items: flex-start;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--amber-bg);
   color: var(--amber-ink);
   font-size: 0.98rem;
@@ -402,8 +407,8 @@
   width: 100%;
   min-height: 48px;
   padding: 10px 14px;
-  border: 2px solid var(--card-line);
-  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
   background: #fff;
   color: var(--ink);
   font: inherit;
@@ -419,6 +424,7 @@
 .finput:focus,
 .ftextarea:focus {
   border-color: var(--navy);
+  box-shadow: inset 0 0 0 1px var(--navy);
   outline: 3px solid var(--focus);
   outline-offset: 1px;
 }
@@ -476,11 +482,10 @@
 }
 
 .judge {
-  margin-top: 22px;
-  border: 2px dashed var(--card-line);
-  border-radius: 20px;
-  padding: 16px 18px;
-  background: rgba(255, 253, 249, 0.6);
+  margin-top: 28px;
+  border-radius: 16px;
+  padding: 18px 20px;
+  background: var(--paper-2);
 }
 
 .judge h2 {
@@ -492,7 +497,8 @@
   display: inline-block;
   padding: 2px 10px;
   border-radius: 8px;
-  background: var(--paper-2);
+  border: 1px solid var(--line-strong);
+  background: var(--card);
   color: var(--navy-deep);
   font-weight: 700;
   user-select: all;
@@ -543,52 +549,57 @@
   margin-bottom: 12px;
 }
 
+/* One quiet surface with hairline rows, like an inbox: no per-row boxes, no coloured edges. */
 .citems {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--card-line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.citems li + li {
+  border-top: 1px solid var(--card-line);
 }
 
 .citem {
   display: block;
   width: 100%;
   text-align: left;
-  border: 1px solid var(--card-line);
-  border-left-width: 8px;
-  border-radius: 16px;
-  background: var(--card);
-  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  padding: 16px 18px;
   cursor: pointer;
   font: inherit;
   color: inherit;
-  box-shadow: var(--shadow);
+  transition: background-color 120ms ease;
 }
 
-.citem--red {
-  border-left-color: var(--red);
-}
-
-.citem--yellow {
-  border-left-color: var(--amber-deep);
-}
-
-.citem--green {
-  border-left-color: var(--green);
+.citem:hover {
+  background: #fbf7ef;
 }
 
 .citem[aria-current="true"] {
-  outline: 3px solid var(--navy);
-  outline-offset: -1px;
+  background: var(--paper-2);
+}
+
+.citem:focus-visible {
+  outline-offset: -3px;
 }
 
 .citem-top {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
+}
+
+.citem-score {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .citem-top .when {
@@ -604,6 +615,11 @@
   color: var(--navy-deep);
 }
 
+.citem-channel {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
 .citem-snippet {
   margin-top: 2px;
   color: var(--ink-soft);
@@ -614,46 +630,91 @@
   overflow: hidden;
 }
 
+/* Facts separated by a middot. Each item is pulled left over its own dot, so the dot of whichever item
+   starts a line falls outside the row and is clipped: a wrapped line never starts with a stray dot. */
 .citem-foot {
   display: flex;
-  gap: 6px;
   flex-wrap: wrap;
+  align-items: center;
+  row-gap: 2px;
   margin-top: 8px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
 }
 
-.vchip {
+.citem-foot > * {
+  margin: 0 18px 0 -18px;
+}
+
+.citem-foot > *::before {
+  content: "·";
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+/* Verdict word: small icon + word in the verdict's ink. The icon keeps colour from being the only signal. */
+.verdict-word {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 10px 2px 6px;
-  border-radius: 99px;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 0.95rem;
+  letter-spacing: 0.01em;
 }
 
-.vchip svg {
-  width: 22px;
-  height: 22px;
+.verdict-word svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 
-.vchip--red {
-  background: var(--red-bg);
+.verdict-word--red {
   color: var(--red-ink);
 }
 
-.vchip--yellow {
-  background: var(--amber-bg);
+.verdict-word--yellow {
   color: var(--amber-ink);
 }
 
-.vchip--green {
-  background: var(--green-bg);
+.verdict-word--green {
   color: var(--green-ink);
 }
 
+/* Status note: a small dot and a few words, for alert and delivery state. The dot is a background, which
+   leaves ::before free for the list's separators. */
+.status {
+  --dot: currentColor;
+  display: inline-block;
+  padding-left: 14px;
+  background: radial-gradient(circle, var(--dot) 3.5px, transparent 4px) no-repeat left center / 8px 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status--red {
+  color: var(--red-ink);
+}
+
+.status--green {
+  color: var(--green-ink);
+}
+
+.status--amber {
+  color: var(--amber-ink);
+}
+
+.status--amber {
+  --dot: var(--amber-deep);
+}
+
+
 .empty {
   text-align: center;
-  padding: 36px 18px;
+  padding: 40px 20px;
   color: var(--ink-soft);
 }
 
@@ -663,56 +724,80 @@
 
 /* detail */
 
+/* Detail header: the verdict as type, a score and a thin risk rule. Colour sits in the word, number and rule. */
 .dverdict {
+  padding: 4px 0 2px;
+}
+
+.dverdict-top {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 16px;
-  padding: 18px;
-  border-radius: 20px;
 }
 
-.dverdict svg {
-  width: 56px;
-  height: 56px;
-  flex: none;
-}
-
-.dverdict--red {
-  background: var(--red);
-  color: var(--on-red);
-}
-
-.dverdict--yellow {
-  background: var(--amber);
-  color: var(--on-amber);
-}
-
-.dverdict--green {
-  background: var(--green);
-  color: var(--on-green);
+.dverdict .verdict-word {
+  font-size: 1rem;
+  margin-bottom: 6px;
 }
 
 .dverdict h2 {
-  color: inherit;
-  font-size: 1.7rem;
-}
-
-.dverdict p {
-  opacity: 0.92;
-  font-size: 1rem;
+  font-size: clamp(1.6rem, 6vw, 2rem);
+  line-height: 1.15;
 }
 
 .dverdict .score {
   margin-left: auto;
   text-align: right;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
   white-space: nowrap;
 }
 
 .dverdict .score b {
   display: block;
-  font-size: 2rem;
+  font-size: 2.2rem;
   line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dverdict--red .score b {
+  color: var(--red);
+}
+
+.dverdict--yellow .score b {
+  color: var(--amber-ink);
+}
+
+.dverdict--green .score b {
+  color: var(--green);
+}
+
+.riskbar {
+  height: 4px;
+  margin-top: 16px;
+  border-radius: 99px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+
+.riskbar span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+
+.dverdict--red .riskbar span {
+  background: var(--red);
+}
+
+.dverdict--yellow .riskbar span {
+  background: var(--amber-deep);
+}
+
+.dverdict--green .riskbar span {
+  background: var(--green);
 }
 
 .back-to-list {
@@ -736,8 +821,8 @@
 .msgbox {
   white-space: pre-wrap;
   background: var(--paper);
-  border-radius: 14px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 14px 16px;
   font-size: 1.05rem;
   max-height: 240px;
   overflow: auto;
@@ -782,17 +867,38 @@
 .flags a {
   color: var(--navy);
   font-weight: 700;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
-.script {
+/* "Before you call": a few short notes, numbered quietly. */
+.points {
+  list-style: none;
   margin: 0;
-  padding: 12px 16px;
-  border-left: 5px solid var(--navy);
-  background: var(--paper);
-  border-radius: 0 14px 14px 0;
-  font-size: 1.05rem;
-  font-style: italic;
+  padding: 0;
+  counter-reset: point;
+}
+
+.points li {
+  counter-increment: point;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--card-line);
+}
+
+.points li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.points li::before {
+  content: counter(point);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.75;
 }
 
 .deliveries {
@@ -819,8 +925,8 @@
 }
 
 .ackbox {
-  padding: 12px 14px;
-  border-radius: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
   background: var(--amber-bg);
   color: var(--amber-ink);
 }
@@ -844,25 +950,32 @@
 
 .trace-head {
   container-type: inline-size;
-  padding: 18px 18px 14px;
-  background: linear-gradient(180deg, #eaf0f8 0%, var(--card) 100%);
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--card-line);
 }
 
 .trace-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 1.35rem;
   margin-bottom: 4px;
 }
 
 .trace-head h3 svg {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
 }
 
 .tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  gap: 1px;
+  margin-top: 16px;
+  background: var(--card-line);
+  border: 1px solid var(--card-line);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 @container (min-width: 500px) {
@@ -873,14 +986,13 @@
 
 .tile {
   background: var(--card);
-  border: 1px solid var(--card-line);
-  border-radius: 14px;
-  padding: 10px 12px;
+  padding: 12px 14px;
 }
 
 .tile b {
   display: block;
   white-space: nowrap;
+  font-weight: 700;
   font-size: 1.35rem;
   line-height: 1.15;
   color: var(--navy-deep);
@@ -904,16 +1016,16 @@
 }
 
 .trace-body {
-  padding: 4px 18px 18px;
+  padding: 4px 20px 20px;
 }
 
-.trace-sub {
-  margin: 14px 0 8px;
-  font-size: 0.82rem;
-  letter-spacing: 0.06em;
+.fam .trace-sub {
+  margin: 22px 0 12px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .tsteps {
@@ -934,10 +1046,10 @@
 .tstep::before {
   content: "";
   position: absolute;
-  left: 16px;
+  left: 16.5px;
   top: 34px;
   bottom: 0;
-  width: 2px;
+  width: 1px;
   background: var(--card-line);
 }
 
@@ -955,24 +1067,28 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-weight: 800;
-  font-size: 0.95rem;
-  background: var(--local-bg);
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
   color: var(--local-ink);
 }
 
 .tstep--model .tnum {
   background: var(--navy);
+  border-color: var(--navy);
   color: #fff;
 }
 
 .tstep--tool .tnum {
-  background: var(--tool-ink);
-  color: #fff;
+  border-color: var(--tool-ink);
+  color: var(--tool-ink);
 }
 
 .tstep--err .tnum {
   background: var(--red);
+  border-color: var(--red);
   color: #fff;
 }
 
@@ -998,8 +1114,9 @@
   font-size: 0.92rem;
   color: var(--ink);
   background: var(--paper);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 6px 10px;
+  overflow-wrap: anywhere;
 }
 
 .terror {
@@ -1018,7 +1135,7 @@
 }
 
 .meter {
-  height: 8px;
+  height: 4px;
   border-radius: 99px;
   background: var(--paper-2);
   margin-top: 8px;
@@ -1130,14 +1247,16 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .entry {
-  border: 1px solid var(--card-line);
-  border-radius: 16px;
-  padding: 14px;
-  background: #fff;
+  padding: 16px 0;
+  border-top: 1px solid var(--card-line);
+}
+
+.entry:first-child {
+  border-top: 0;
+  padding-top: 4px;
 }
 
 .entry-top {
@@ -1183,10 +1302,17 @@
   margin-top: 12px;
 }
 
-.entry--editing {
-  border-color: var(--navy);
-  border-width: 2px;
-  background: var(--card);
+.entry--editing,
+.entry--editing:first-child {
+  margin: 8px 0;
+  padding: 16px;
+  border: 1px solid var(--navy);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.entry--editing + .entry {
+  border-top: 0;
 }
 
 .formerr {
@@ -1246,8 +1372,8 @@
   gap: 14px;
   grid-template-columns: 1fr;
   justify-items: start;
-  padding: 14px;
-  border-radius: 16px;
+  padding: 16px;
+  border-radius: 12px;
   background: var(--paper);
 }
 
@@ -1263,7 +1389,7 @@
   height: 176px;
   padding: 10px;
   background: #fff;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid var(--card-line);
 }
 
@@ -1285,14 +1411,15 @@
 }
 
 .landing .hero {
-  padding: 28px 0 22px;
+  padding: 40px 0 32px;
 }
 
 .landing .hero h1 {
   font-size: clamp(2.1rem, 8vw, 3.4rem);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.08;
-  max-width: 16em;
+  letter-spacing: -0.025em;
+  max-width: 14em;
 }
 
 .landing .hero p {
@@ -1302,15 +1429,35 @@
   color: var(--ink-soft);
 }
 
+/* The two ways in sit side by side on one surface; the judge's panel is set apart on a soft fill. */
 .paths {
   display: grid;
   gap: 16px;
   grid-template-columns: 1fr;
 }
 
+.paths-pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--card);
+  border: 1px solid var(--card-line);
+  border-radius: 16px;
+}
+
+.paths-pair .path + .path {
+  border-top: 1px solid var(--card-line);
+}
+
 @media (min-width: 760px) {
   .paths {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 2fr 1fr;
+  }
+  .paths-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+  .paths-pair .path + .path {
+    border-top: 0;
+    border-left: 1px solid var(--card-line);
   }
 }
 
@@ -1318,6 +1465,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 22px 20px;
+}
+
+.path h2 {
+  font-size: 1.3rem;
 }
 
 .path .fbtn {
@@ -1330,7 +1482,8 @@
 }
 
 .path--judge {
-  border: 2px solid var(--navy);
+  border-radius: 16px;
+  background: var(--paper-2);
 }
 
 .steps {
@@ -1355,14 +1508,16 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--paper-2);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
   color: var(--navy-deep);
-  font-weight: 800;
-  font-size: 0.95rem;
+  font-weight: 700;
+  font-size: 0.9rem;
 }
 
 .steps .done .n {
   background: var(--green);
+  border-color: var(--green);
   color: #fff;
 }
 
@@ -1380,6 +1535,7 @@
 @media (prefers-contrast: more) {
   .fam {
     --card-line: #6b6b6b;
+    --line-strong: #4c4c4c;
   }
 }
 

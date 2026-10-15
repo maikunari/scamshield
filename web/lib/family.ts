@@ -96,7 +96,7 @@ export interface FullResult {
     score: number;
     red_flags: { text: string; evidence_url: string | null }[];
     safe_action: string;
-    family_script: string;
+    family_points: string[];
     evidence_note: string;
     degraded: boolean;
   };

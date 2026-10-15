@@ -37,8 +37,11 @@ Rules:
   and only when that page supports the flag; otherwise null. Never invent URLs or reports.
 - If the evidence list is empty, do not claim anything was reported online.
 - safe_action: one calm sentence telling the parent what to do (or not do) next.
-- family_script: what the adult child should say when phoning the parent, in a calm, warm tone. Empty if score < 30.
-Return JSON: {{"score": int, "red_flags": [{{"text": str, "evidence_url": str|null}}], "safe_action": str, "family_script": str}}"""
+- family_points: 3 or 4 short notes the adult child reads before phoning the parent. Not a script: no greeting,
+  no quoted speech. In order: what the message is (who it pretends to be and what it wants), the clearest concrete
+  red flag, then one or two things to tell the parent or do (don't reply or pay; call the person or company back
+  on a number the parent already has). Each note under 20 words. Empty list if score < 30.
+Return JSON: {{"score": int, "red_flags": [{{"text": str, "evidence_url": str|null}}], "safe_action": str, "family_points": [str]}}"""
 
 
 def triage_user(message_body: str, sender: str | None, channel: str, urls: list[str], phones: list[str]) -> str:

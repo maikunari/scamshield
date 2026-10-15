@@ -70,8 +70,8 @@ def test_parent_side_stays_public(client):
     assert client.get("/api/family/gate").status_code == 200
     r = client.post("/api/check", json={"sender": "212-555-0102", "body": "Grandma it's Tom! Soccer moved to Saturday at 2pm."})
     assert r.status_code == 200 and r.json()["label"] == "green"
-    # the call script and trace are not in the parent's response
-    assert "family_script" not in r.text and "trace" not in r.text
+    # the family notes and trace are not in the parent's response
+    assert "family_points" not in r.text and "trace" not in r.text
 
 
 def test_login_rejects_a_wrong_passphrase_and_accepts_the_right_one(client):
@@ -188,7 +188,7 @@ def test_load_demo_family_seeds_profile_checks_and_alerts(client):
     assert checks[0]["body_kept"] is True and checks[0]["snippet"]
 
     full = client.get(f"/results/{newest['id']}").json()
-    assert full["demo"] is True and full["verdict"]["family_script"]
+    assert full["demo"] is True and full["verdict"]["family_points"]
     assert [s["name"] for s in full["trace"]["steps"] if s["kind"] == "model"] == ["triage", "plan", "verdict"]
 
 

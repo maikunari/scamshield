@@ -65,7 +65,12 @@
             }
           ],
           "safe_action": "Do not click the link. Open the Lakeview Example Bank app yourself, or call the number on your bank card.",
-          "family_script": "Hi Mom, it's David. I saw the bank statement email. Please don't click anything in it; the address isn't your bank's. I'll come by, or we can open the bank app together.",
+          "family_points": [
+            "An email posing as Lakeview Example Bank, asking her to log in to see a statement.",
+            "It comes from lakeviewbank-online.test, not the bank's real address.",
+            "Tell her not to click the link or enter her password.",
+            "If she wants to check, open the bank app together or call the number on her card."
+          ],
           "evidence_note": "No public reports of this address were found. The mismatch with Margaret's saved bank address is what flagged it.",
           "degraded": false
         },
@@ -275,7 +280,12 @@
             }
           ],
           "safe_action": "Don't tap the link. If you ordered from Maple Garden Shop, look for the order in their email or call the shop.",
-          "family_script": "Hi Mom, did you order something from Maple Garden Shop? If so, let's check the order in their email, not the text message link.",
+          "family_points": [
+            "A text saying a Maple Garden Shop order is out for delivery, with a tracking link.",
+            "The link goes to a site nobody has vouched for, from an unknown number.",
+            "Ask her whether she ordered anything; if so, track it from the shop's own email.",
+            "Either way, she shouldn't tap the link in the text."
+          ],
           "evidence_note": "No public reports found for this link or number.",
           "degraded": false
         },
@@ -449,7 +459,7 @@
           "score": 5,
           "red_flags": [],
           "safe_action": "This looks fine. No action needed.",
-          "family_script": "",
+          "family_points": [],
           "evidence_note": "Not checked online: the sender is Margaret's saved pharmacy.",
           "degraded": false
         },
@@ -613,7 +623,12 @@
             }
           ],
           "safe_action": "Do not call back or pay anything. Hang up and tell your family.",
-          "family_script": "Hi Mom, the police won't ask for payment over the phone or by gift cards. Please don't call that number back. I'm going to phone you right now.",
+          "family_points": [
+            "A voicemail from \"Officer Daniels\" saying there's a warrant for her arrest.",
+            "Others have reported this number, and police never take payment by phone.",
+            "Tell her not to call back or pay anything.",
+            "If she's still worried, call the sheriff's office on its published number."
+          ],
           "evidence_note": "Public reports found: 2 sources.",
           "degraded": false
         },
@@ -810,7 +825,7 @@
           "score": 5,
           "red_flags": [],
           "safe_action": "This looks fine. No action needed.",
-          "family_script": "",
+          "family_points": [],
           "evidence_note": "Not checked online: the sender is Margaret's saved bank and every link is on its own site.",
           "degraded": false
         },

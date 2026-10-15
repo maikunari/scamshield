@@ -22,7 +22,7 @@ def run(pipeline, mid):
 def test_scam_gets_red_with_real_evidence_urls(pipeline, search):
     r = run(pipeline, "m10")
     v = r.verdict
-    assert v.label == "red" and v.score >= 70 and v.safe_action and v.family_script
+    assert v.label == "red" and v.score >= 70 and v.safe_action and v.family_points
     hit_urls = {h.url for lk in r.lookups for h in lk.hits}
     cited = [f.evidence_url for f in v.red_flags if f.evidence_url]
     assert cited and set(cited) <= hit_urls
@@ -111,6 +111,35 @@ def test_model_failure_degrades_to_careful(settings, store, search):
     r = run(Pipeline(settings, Down(), search, store), "m02")
     assert r.verdict.degraded and r.verdict.label in ("yellow", "red")
     assert [s.error for s in r.trace.steps if s.name == "verdict"] == ["boom"]
+    assert any("could not fully check" in p for p in r.verdict.family_points)
+
+
+def test_family_points_are_short_notes_with_a_fallback(settings, store, search):
+    replies = iter([
+        ["  What it is.  ", "", "Why.", "Tell her.", "Do this.", "One too many."],  # trimmed, blanks dropped, capped at 4
+        "Hi Mom, it's me, please don't pay.",  # a model that still wrote one paragraph: kept as one note
+        [],  # nothing: the pipeline writes the notes itself
+    ])
+
+    class Points(FakeLLMClient):
+        def complete_json(self, request):
+            r = super().complete_json(request)
+            if request.task == "verdict":
+                r.data["family_points"] = next(replies)
+            return r
+
+    p = Pipeline(settings, Points(), search, store)
+    first = p.analyze(SEED["m10"], "margaret", use_cache=False).verdict
+    assert first.family_points == ["What it is.", "Why.", "Tell her.", "Do this."]
+    assert p.analyze(SEED["m10"], "margaret", use_cache=False).verdict.family_points == ["Hi Mom, it's me, please don't pay."]
+    third = p.analyze(SEED["m10"], "margaret", use_cache=False)
+    assert len(third.verdict.family_points) == 4
+    assert third.verdict.family_points[1] == third.verdict.red_flags[0].text
+    assert any("not to reply" in n for n in third.verdict.family_points)
+
+
+def test_safe_message_has_no_family_points(pipeline):
+    assert run(pipeline, "m17").verdict.family_points == []
 
 
 def test_triage_failure_still_runs_evidence_and_verdict(settings, store, search):

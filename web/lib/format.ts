@@ -80,7 +80,7 @@ export function stepCopy(step: TraceStep, parentFirstName: string): StepCopy {
     case "plan":
       return { title: "Plan the evidence search", blurb: `${who} chooses what is worth looking up.` };
     case "verdict":
-      return { title: "Decide and explain", blurb: `${who} weighs everything and writes the verdict, the red flags and the call script.` };
+      return { title: "Decide and explain", blurb: `${who} weighs everything and writes the verdict, the red flags and the notes for the family.` };
     case "guardrails":
       return { title: "Safety rules", blurb: "Fixed rules that memory and failed steps can never be talked out of." };
     case "fast_path":

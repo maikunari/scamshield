@@ -24,8 +24,8 @@ def format_result(r: AnalysisResult) -> str:
         lines.append(f"  - {f.text}" + (f"\n      evidence: {f.evidence_url}" if f.evidence_url else ""))
     lines.append(f"  evidence: {v.evidence_note}")
     lines.append(f"  do this: {v.safe_action}")
-    if v.family_script:
-        lines.append(f"  call script: {v.family_script}")
+    for point in v.family_points:
+        lines.append(f"  for the family: {point}")
     lines.append("  trace:")
     for s in r.trace.steps:
         who = f"{s.tier}:{s.model}" if s.model else s.kind

@@ -12,8 +12,15 @@ const REFRESH_MS = 15_000;
 
 function alertChip(c: CheckSummary) {
   if (!c.alert) return null;
-  if (c.alert.acked_at) return <span className="chip chip--green">Alerted · she was called</span>;
-  return <span className="chip chip--red">Alerted · not called yet</span>;
+  // Wrapped, so the row's separator (the outer span's ::before) and the status dot don't collide.
+  const done = Boolean(c.alert.acked_at);
+  return (
+    <span>
+      <span className={`status ${done ? "status--green" : "status--red"}`}>
+        {done ? "Alerted · she was called" : "Alerted · not called yet"}
+      </span>
+    </span>
+  );
 }
 
 interface Props {
@@ -99,29 +106,29 @@ export function ChecksView({ parentId, parentFirstName, initialCheck, onUnauthor
               <li key={c.id}>
                 <button
                   type="button"
-                  className={`citem citem--${c.label}`}
+                  className="citem"
                   aria-current={c.id === selected}
                   onClick={() => pick(c.id)}
                 >
                   <span className="citem-top">
-                    <span className={`vchip vchip--${c.label}`}>
+                    <span className={`verdict-word verdict-word--${c.label}`}>
                       <VerdictMark kind={c.label} />
                       {LABEL_WORD[c.label]}
                     </span>
-                    <span className="small muted">{c.score}/100</span>
+                    <span className="citem-score">{c.score}/100</span>
                     <span className="when">{timeAgo(c.created_at)}</span>
                   </span>
                   <span className="citem-sender">
                     {prettySender(c.sender)}
-                    <span className="muted" style={{ fontWeight: 400 }}> · {c.channel}</span>
+                    <span className="citem-channel"> · {c.channel}</span>
                   </span>
                   <span className="citem-snippet">
                     {c.snippet || c.summary || "Safe message: the text was not kept."}
                   </span>
                   <span className="citem-foot">
                     {alertChip(c)}
-                    {c.demo && <span className="chip chip--nano">Sample</span>}
-                    {c.trace.model_calls > 0 && <span className="chip">{c.trace.model_calls} Nemotron call{c.trace.model_calls === 1 ? "" : "s"}</span>}
+                    {c.demo && <span>Sample</span>}
+                    {c.trace.model_calls > 0 && <span>{c.trace.model_calls} Nemotron call{c.trace.model_calls === 1 ? "" : "s"}</span>}
                   </span>
                 </button>
               </li>

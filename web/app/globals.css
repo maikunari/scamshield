@@ -214,7 +214,6 @@ a {
 
 .btn-primary:disabled {
   background: #6b7a90;
-  box-shadow: none;
 }
 
 .btn svg {
@@ -229,7 +228,6 @@ a {
   min-height: 92px;
   font-size: 1.65rem;
   letter-spacing: 0.005em;
-  box-shadow: 0 8px 20px -10px rgba(21, 43, 71, 0.6);
 }
 
 .btn-primary:hover {
@@ -239,6 +237,7 @@ a {
 .btn-secondary {
   background: #fffdf9;
   color: var(--navy-deep);
+  border-width: 2px;
   border-color: var(--line);
   justify-content: flex-start;
   text-align: left;
@@ -288,7 +287,7 @@ a {
 .examples-head::after {
   content: "";
   flex: 1;
-  height: 2px;
+  height: 1px;
   background: var(--line);
 }
 
@@ -441,6 +440,11 @@ a {
   line-height: 1;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+/* The heading takes focus so screen readers announce the verdict; it is not a control, so no focus ring. */
+.verdict h1:focus {
+  outline: none;
 }
 
 .verdict-lede {

@@ -37,7 +37,12 @@ FAMILY_RELATIONSHIPS = {"son", "daughter", "child"}  # the adult child; grandchi
 ALERT_LABELS = {"red"}
 LINK_CODE_TTL = timedelta(days=7)
 MAX_FLAGS = 3
-DEFAULT_SCRIPT = "Hi, it's me. I saw a message you got and I'd like to look at it together. Please don't reply or click anything until we talk."
+MAX_POINTS = 4
+DEFAULT_POINTS = [
+    "She was sent a message that looks like a scam.",
+    "Tell her not to reply, click, pay or call back.",
+    "If it names someone she knows, call that person on the number she already has.",
+]
 
 
 def family_contacts(profile: Profile) -> list[Contact]:
@@ -76,7 +81,7 @@ def build_content(
     first = parent_name.split()[0] if parent_name.strip() else "your parent"
     v = result.verdict
     flags = v.red_flags[:MAX_FLAGS]
-    script = v.family_script.strip() or DEFAULT_SCRIPT
+    points = [p.strip() for p in v.family_points if p.strip()][:MAX_POINTS] or DEFAULT_POINTS
     sender = result.message.sender or "an unknown sender"
     check_url = f"{base_url}/family/?check={quote(result.id)}" if base_url else None
     ack_url = f"{base_url}/api/alerts/{quote(alert_id)}/ack?t={quote(token)}" if base_url else None
@@ -87,25 +92,26 @@ def build_content(
 
     # Telegram (HTML parse mode: <b>, <i>, <a href>)
     tg = [f"🔴 <b>{headline}</b>", f"From: {e(sender)} ({e(result.message.channel)})"]
+    tg += ["", "<b>Before you call her</b>", *(f"• {e(p)}" for p in points)]
     if flags:
         tg.append("")
         tg.append("<b>Why it looks like a scam</b>")
         for i, f in enumerate(flags, 1):
             link = _safe_url(f.evidence_url)
             tg.append(f"{i}. {e(f.text)}" + (f' (<a href="{e(link, quote=True)}">evidence</a>)' if link else ""))
-    tg += ["", "<b>Suggested words for the call</b>", f"<i>{e(script)}</i>"]
     if check_url:
         tg += ["", f'<a href="{e(check_url, quote=True)}">See the full check</a>']
 
     # Email, plain text
-    tx = [headline, f"From: {sender} ({result.message.channel})", ""]
+    tx = [headline, f"From: {sender} ({result.message.channel})", "", "Before you call her:"]
+    tx += [f"- {p}" for p in points]
+    tx.append("")
     if flags:
         tx.append("Why it looks like a scam:")
         for i, f in enumerate(flags, 1):
             link = _safe_url(f.evidence_url)
             tx.append(f"{i}. {f.text}" + (f" - evidence: {link}" if link else ""))
         tx.append("")
-    tx += ["Suggested words for the call:", f'"{script}"', ""]
     if check_url:
         tx.append(f"See the full check: {check_url}")
     if ack_url:
@@ -113,6 +119,7 @@ def build_content(
     tx += ["", "Sent by ScamShield."]
 
     # Email, HTML
+    notes = [f'<li style="margin:0 0 6px">{e(p)}</li>' for p in points]
     li = []
     for f in flags:
         link = _safe_url(f.evidence_url)
@@ -122,13 +129,11 @@ def build_content(
         '<div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5;color:#1b1b1b;max-width:560px">',
         f'<h2 style="margin:0 0 8px;color:#a31515">🔴 {headline}</h2>',
         f'<p style="margin:0 0 16px;color:#555">From: {e(sender)} ({e(result.message.channel)})</p>',
+        '<h3 style="margin:16px 0 8px">Before you call her</h3>'
+        f'<ul style="padding-left:20px;margin:0">{"".join(notes)}</ul>',
     ]
     if li:
         parts.append(f'<h3 style="margin:16px 0 8px">Why it looks like a scam</h3><ol style="padding-left:20px">{"".join(li)}</ol>')
-    parts.append(
-        '<h3 style="margin:16px 0 8px">Suggested words for the call</h3>'
-        f'<blockquote style="margin:0;padding:8px 16px;border-left:4px solid #999;background:#f6f6f6">{e(script)}</blockquote>'
-    )
     if ack_url:
         parts.append(
             f'<p style="margin:24px 0"><a href="{e(ack_url, quote=True)}" style="background:#1b6e3c;color:#fff;'

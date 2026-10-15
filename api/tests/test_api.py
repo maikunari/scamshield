@@ -53,7 +53,7 @@ def test_check_grandchild_scam_is_red_with_flags_and_family_name(client):
     assert data["offline"] is True
     assert data["budget_mode"] == "normal"
     # Nothing meant for the family leaks to the parent screen.
-    assert "family_script" not in data
+    assert "family_points" not in data
     assert "trace" not in data
 
 
@@ -83,7 +83,7 @@ def test_check_unknown_delivery_without_fee_is_careful(client):
 def test_check_result_is_persisted_and_readable(client):
     r = client.post("/api/check", json={"body": "WARNING your computer is infected, call Microsoft Support at 1-800-555-0166 now"})
     analysis_id = r.json()["id"]
-    assert client.get(f"/results/{analysis_id}").status_code == 401  # the trace and call script are family-only
+    assert client.get(f"/results/{analysis_id}").status_code == 401  # the trace and family notes are family-only
     sign_in(client)
     full = client.get(f"/results/{analysis_id}")
     assert full.status_code == 200
