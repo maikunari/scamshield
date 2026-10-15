@@ -39,6 +39,14 @@ export function StopIcon(props: P) {
   );
 }
 
+export function TickIcon(props: P) {
+  return (
+    <svg {...base} {...props}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function BackIcon(props: P) {
   return (
     <svg {...base} {...props}>

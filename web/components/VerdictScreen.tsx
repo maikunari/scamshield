@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CheckResponse, Label } from "@/lib/types";
 import { copyFor } from "@/lib/verdictCopy";
-import { speak, speechSupported, stopSpeaking } from "@/lib/speech";
+import { speak, stopSpeaking, watchVoices } from "@/lib/speech";
 import { BackIcon, ExternalIcon, FlagDot, ShieldIcon, SpeakerIcon, StopIcon, VerdictMark } from "./Icons";
 
 const MAX_FLAGS = 3;
@@ -31,9 +31,11 @@ export function VerdictScreen({ result, onBack }: Props) {
   const [canSpeak, setCanSpeak] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
+  // No voices installed (or not loaded yet): no "Read this to me" button rather than one that does nothing.
+  useEffect(() => watchVoices(setCanSpeak), []);
+
   // Focus the verdict for screen readers, tint the browser chrome, and stop any speech on leave.
   useEffect(() => {
-    setCanSpeak(speechSupported());
     headingRef.current?.focus();
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const previous = meta?.content;

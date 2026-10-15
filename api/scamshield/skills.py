@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import threading
 import time
 
 from .budget import Budget, BudgetBlocked
@@ -38,6 +39,7 @@ class EvidenceDesk:
         self.budget = budget
         self.live_calls = 0
         self.extract_calls = 0
+        self._lock = threading.Lock()  # lookups run in parallel; the per-message call budget is shared
 
     @property
     def budget_left(self) -> int:
@@ -52,16 +54,17 @@ class EvidenceDesk:
             hits = [SearchHit(**h) for h in cached]
             self._trace(skill, query, start, cost=0.0, detail=f"cache hit, {len(hits)} raw results")
             return hits, True, None
-        if self.budget_left <= 0:
-            self._trace(skill, query, start, cost=0.0, detail="skipped: search budget exhausted")
-            return [], False, "search budget exhausted"
-        if self.budget:
-            try:
-                self.budget.check_search()
-            except BudgetBlocked as exc:
-                self._trace(skill, query, start, cost=0.0, detail=f"skipped: budget guard ({exc})")
-                return [], False, f"budget guard: {exc}"
-        self.live_calls += 1
+        with self._lock:
+            if self.budget_left <= 0:
+                self._trace(skill, query, start, cost=0.0, detail="skipped: search budget exhausted")
+                return [], False, "search budget exhausted"
+            if self.budget:
+                try:
+                    self.budget.check_search()
+                except BudgetBlocked as exc:
+                    self._trace(skill, query, start, cost=0.0, detail=f"skipped: budget guard ({exc})")
+                    return [], False, f"budget guard: {exc}"
+            self.live_calls += 1
         try:
             hits = self.client.search(query, topic=topic)
         except SearchError as exc:

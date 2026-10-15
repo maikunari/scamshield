@@ -8,13 +8,13 @@ from .schemas import SCHEMAS
 
 
 class ModelRouter:
-    """Routes a pipeline step to its tier (fast=Nano, mid=Super, reason=Ultra), calls the client and logs a trace step.
+    """Routes a pipeline step to its tier (triage: fast=Nano, verdict: reason=Ultra), calls the client and logs a trace step.
 
     With a ``Budget`` it also books each live call's cost, runs the step on Nano when the budget is degraded and
     refuses the call (``LLMBlocked``) when the budget is exhausted or killed.
     """
 
-    TASK_TIER = {"triage": "fast", "plan": "mid", "verdict": "reason"}
+    TASK_TIER = {"triage": "fast", "verdict": "reason"}
 
     def __init__(self, client: LLMClient, settings: Settings, budget: Budget | None = None):
         self.client = client
@@ -41,7 +41,15 @@ class ModelRouter:
             if tier != wanted:
                 note = f"budget degraded: {wanted} -> {tier} tier"
         model = self.settings.model_for(tier)
-        request = LLMRequest(task=task, model=model, system=system, user=user, context=context, schema=SCHEMAS.get(task))
+        request = LLMRequest(
+            task=task,
+            model=model,
+            system=system,
+            user=user,
+            context=context,
+            schema=SCHEMAS.get(task),
+            thinking=task in self.settings.thinking_tasks,
+        )
         try:
             response = self.client.complete_json(request)
         except Exception as exc:

@@ -2,12 +2,15 @@
 
 import { useId } from "react";
 import { EXAMPLES, type Example } from "@/lib/examples";
+import type { Progress } from "@/lib/progress";
+import { CheckProgress } from "./CheckProgress";
 import { LockIcon, ShieldIcon } from "./Icons";
 
 interface Props {
   body: string;
   sender: string;
   busy: boolean;
+  progress: Progress;
   error: string | null;
   onBodyChange: (v: string) => void;
   onSenderChange: (v: string) => void;
@@ -15,7 +18,7 @@ interface Props {
   onExample: (ex: Example) => void;
 }
 
-export function CheckForm({ body, sender, busy, error, onBodyChange, onSenderChange, onSubmit, onExample }: Props) {
+export function CheckForm({ body, sender, busy, progress, error, onBodyChange, onSenderChange, onSubmit, onExample }: Props) {
   const bodyId = useId();
   const senderId = useId();
   const canSubmit = body.trim().length > 0 && !busy;
@@ -80,12 +83,7 @@ export function CheckForm({ body, sender, busy, error, onBodyChange, onSenderCha
         )}
 
         {busy ? (
-          <div className="checking" role="status" aria-live="polite">
-            <span className="dots" aria-hidden>
-              <i /><i /><i />
-            </span>
-            Checking the message
-          </div>
+          <CheckProgress progress={progress} />
         ) : (
           <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
             Check this message

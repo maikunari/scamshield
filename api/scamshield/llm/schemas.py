@@ -1,4 +1,4 @@
-"""JSON Schemas for the three model replies, sent as ``response_format: json_schema`` and repeated in the prompt.
+"""JSON Schemas for the two model replies, sent as ``response_format: json_schema`` and repeated in the prompt.
 
 They follow the strict subset (every property required, ``additionalProperties: false``, nullable via a type list)
 so the same dict works on any model that supports structured output.
@@ -40,27 +40,6 @@ TRIAGE_SCHEMA = {
     },
 }
 
-PLAN_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["lookups"],
-    "properties": {
-        "lookups": {
-            "type": "array",
-            "maxItems": 3,
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["skill", "value"],
-                "properties": {
-                    "skill": {"type": "string", "enum": ["check_phone", "check_url", "check_phrase"]},
-                    "value": {"type": "string"},
-                },
-            },
-        }
-    },
-}
-
 VERDICT_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -81,4 +60,4 @@ VERDICT_SCHEMA = {
     },
 }
 
-SCHEMAS = {"triage": TRIAGE_SCHEMA, "plan": PLAN_SCHEMA, "verdict": VERDICT_SCHEMA}
+SCHEMAS = {"triage": TRIAGE_SCHEMA, "verdict": VERDICT_SCHEMA}

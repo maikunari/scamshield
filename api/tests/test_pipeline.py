@@ -156,8 +156,8 @@ def test_triage_failure_still_runs_evidence_and_verdict(settings, store, search)
 def test_trace_records_model_tokens_latency_and_cost(pipeline):
     r = run(pipeline, "m02")
     models = {s.name: s for s in r.trace.steps if s.kind == "model"}
-    assert set(models) == {"triage", "plan", "verdict"}
-    assert (models["triage"].tier, models["plan"].tier, models["verdict"].tier) == ("fast", "mid", "reason")
+    assert set(models) == {"triage", "verdict"}
+    assert (models["triage"].tier, models["verdict"].tier) == ("fast", "reason")
     assert all(s.model and s.tokens_in > 0 and s.cost_usd > 0 for s in models.values())
     assert r.trace.total_cost_usd > 0 and r.trace.total_tokens > 0
     assert pipeline.store.get_analysis(r.id).trace.total_tokens == r.trace.total_tokens
