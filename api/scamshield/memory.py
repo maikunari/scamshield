@@ -316,6 +316,14 @@ class MemoryStore:
             self._db.execute(f"DELETE FROM alerts WHERE id IN ({marks})", part)
         return len(ids)
 
+    def clear_verdict_cache(self, parent_id: str) -> int:
+        """Drop one parent's cached verdicts (the key covers the parent, so nobody else's are touched), so a repeat
+        check runs the models again. Returns how many were removed."""
+        with self._lock, self._db:
+            return self._db.execute(
+                "DELETE FROM verdict_cache WHERE json_extract(result_json, '$.parent_id')=?", (parent_id,)
+            ).rowcount
+
     def delete_parent_data(self, parent_id: str) -> dict[str, int]:
         """Delete everything stored for one parent: profile (memory), checks with their traces, verdict-cache copies,
         alerts and deliveries, Telegram links. The search cache (queries hold phone numbers and domains from

@@ -23,6 +23,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from .config import Settings
+from .llm.router import ModelRouter
 from .memory import Contact, KnownService, MemoryStore, Profile
 from .models import AnalysisResult
 from .normalize import to_e164
@@ -280,13 +281,30 @@ def _ago(now: datetime, hours: float) -> str:
     return (now - timedelta(hours=hours)).isoformat(timespec="seconds")
 
 
+def _current_models(steps: list[dict], settings: Settings) -> list[dict]:
+    """A sample's model steps as the check runs today: each one carries the model its task is routed to now
+    (``ModelRouter.TASK_TIER``, ``settings.models``), and a model step for a task the check no longer makes (the
+    old Super planning call) is dropped. Tokens, timings and costs stay as recorded."""
+    out = []
+    for step in steps:
+        if step["kind"] == "model":
+            if (tier := ModelRouter.TASK_TIER.get(step["name"])) is None:
+                continue
+            step = {**step, "tier": tier, "model": settings.models[tier]}
+        out.append(step)
+    return out
+
+
 def load_demo(store: MemoryStore, auth: FamilyAuth, settings: Settings, seed_profile: Profile) -> dict:
     """Reset the demo parent: seed profile, the configured passphrase, and the sample past checks from
     ``seed/demo_checks.json`` with their alerts. The history is stored as it would have been left by real
-    traffic (a 🟢 body is dropped), is marked ``demo`` and is dated relative to now. Nothing is sent."""
+    traffic (a 🟢 body is dropped), is marked ``demo`` and is dated relative to now; its model steps name the
+    models the check uses now. The parent's cached verdicts are cleared too, so a repeat of a sample message runs
+    the models instead of replaying an old answer. Nothing is sent."""
     parent_id = settings.demo_parent_id
     profile = seed_profile.model_copy(update={"id": parent_id})
     store.clear_family_activity(parent_id)
+    store.clear_verdict_cache(parent_id)
     store.save_profile(profile)
     auth.ensure_configured_passphrase(parent_id)  # unchanged when it already matches, so open dashboards stay signed in
 
@@ -294,8 +312,16 @@ def load_demo(store: MemoryStore, auth: FamilyAuth, settings: Settings, seed_pro
     spec = json.loads((settings.seed_dir / "demo_checks.json").read_text(encoding="utf-8"))
     alerts = 0
     for row in spec["checks"]:
+        trace = {**row["result"]["trace"], "steps": _current_models(row["result"]["trace"]["steps"], settings)}
         result = AnalysisResult.model_validate(
-            {**row["result"], "id": f"demo-{row['key']}", "parent_id": parent_id, "created_at": _ago(now, row["hours_ago"]), "demo": True}
+            {
+                **row["result"],
+                "trace": trace,
+                "id": f"demo-{row['key']}",
+                "parent_id": parent_id,
+                "created_at": _ago(now, row["hours_ago"]),
+                "demo": True,
+            }
         )
         store.save_analysis(result, keep_body=profile.store_green_bodies)
         if not (alert := row.get("alert")):

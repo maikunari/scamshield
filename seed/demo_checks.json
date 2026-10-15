@@ -125,18 +125,6 @@
               "error": null
             },
             {
-              "name": "plan",
-              "kind": "model",
-              "tier": "mid",
-              "model": "nvidia/nemotron-3-super-120b-a12b",
-              "tokens_in": 905,
-              "tokens_out": 164,
-              "latency_ms": 1710.0,
-              "cost_usd": 0.000419,
-              "detail": "",
-              "error": null
-            },
-            {
               "name": "tavily:check_url",
               "kind": "tool",
               "tier": null,
@@ -337,18 +325,6 @@
               "latency_ms": 0.1,
               "cost_usd": 0.0,
               "detail": "unknown: sender is not in the trusted contacts or known services",
-              "error": null
-            },
-            {
-              "name": "plan",
-              "kind": "model",
-              "tier": "mid",
-              "model": "nvidia/nemotron-3-super-120b-a12b",
-              "tokens_in": 905,
-              "tokens_out": 164,
-              "latency_ms": 1710.0,
-              "cost_usd": 0.000419,
-              "detail": "",
               "error": null
             },
             {
@@ -680,18 +656,6 @@
               "latency_ms": 0.0,
               "cost_usd": 0.0,
               "detail": "unknown: sender is not in the trusted contacts or known services",
-              "error": null
-            },
-            {
-              "name": "plan",
-              "kind": "model",
-              "tier": "mid",
-              "model": "nvidia/nemotron-3-super-120b-a12b",
-              "tokens_in": 905,
-              "tokens_out": 164,
-              "latency_ms": 1710.0,
-              "cost_usd": 0.000419,
-              "detail": "",
               "error": null
             },
             {
