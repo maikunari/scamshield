@@ -40,6 +40,8 @@ from .skills import SKILLS, EvidenceDesk
 
 SNIPPET_CHARS = 300
 EXCERPT_CHARS = 1200
+MAX_FAMILY_POINTS = 4
+VERDICT_FORMAT = "family-points"  # part of the verdict cache key: a cached verdict in an older shape is not replayed
 
 
 class Pipeline:
@@ -68,6 +70,7 @@ class Pipeline:
             self.llm.name,
             self.search.name,
             *(model_key(self.settings.model_for(t)) for t in TIERS),
+            VERDICT_FORMAT,
         ]
         return hashlib.sha256("\x1f".join(parts).encode()).hexdigest()
 
@@ -191,7 +194,6 @@ class Pipeline:
             score=score,
             red_flags=[],
             safe_action="This looks fine. No action needed.",
-            family_script="",
             evidence_note=f"Not checked online ({why}).",
         )
 
@@ -284,14 +286,14 @@ class Pipeline:
             score = int(max(0, min(100, round(float(data["score"])))))
             flags = _parse_flags(data.get("red_flags"))
             safe_action = str(data.get("safe_action") or "")
-            family_script = str(data.get("family_script") or "")
+            family_points = _parse_points(data.get("family_points"))
         except (LLMError, KeyError, TypeError, ValueError) as exc:
             _mark_error(trace, "verdict", exc)
             degraded = True
             score = 15 if contact.status == "trusted" else 50
             flags = []
             safe_action = "We could not fully check this message. Don't reply, click or pay; ask your family first."
-            family_script = "Hi Mom, I'm checking a message you got. Please don't reply or click anything until we talk."
+            family_points = []
 
         # Only URLs that Tavily actually returned for this message may be cited as evidence.
         allowed = {h.url for lk in lookups for h in lk.hits}
@@ -317,7 +319,7 @@ class Pipeline:
             score=score,
             red_flags=flags,
             safe_action=safe_action,
-            family_script=family_script if label != "green" else "",
+            family_points=(family_points or default_family_points(triage, flags, degraded)) if label != "green" else [],
             evidence_note=evidence_note(lookups),
             degraded=degraded,
         )
@@ -367,6 +369,31 @@ def _parse_flags(raw: object) -> list[RedFlag]:
             url = item.get("evidence_url")
             flags.append(RedFlag(text=str(item["text"]), evidence_url=url if isinstance(url, str) and url else None))
     return flags
+
+
+def _parse_points(raw: object) -> list[str]:
+    """The verdict model's family notes: non-empty strings, at most ``MAX_FAMILY_POINTS``. A bare string (a model
+    that still wrote one paragraph) is kept as a single note rather than dropped."""
+    items = [raw] if isinstance(raw, str) else raw if isinstance(raw, list) else []
+    points = [" ".join(str(p).split()) for p in items if isinstance(p, (str, int, float))]
+    return [p for p in points if p][:MAX_FAMILY_POINTS]
+
+
+def default_family_points(triage: Triage, flags: list[RedFlag], degraded: bool = False) -> list[str]:
+    """Notes for the family when the model gave none (or failed): what it is, why, and what to tell her."""
+    what = triage.summary.strip() or "A message from a sender she doesn't know."
+    if degraded:
+        why = "ScamShield could not fully check it, so treat it as suspicious."
+    elif flags:
+        why = flags[0].text
+    else:
+        why = "It has the marks of a scam."
+    return [
+        what,
+        why,
+        "Tell her not to reply, click, pay or call back.",
+        "If it names someone she knows, call that person on the number she already has.",
+    ]
 
 
 def _cacheable(result: AnalysisResult, profile: Profile) -> AnalysisResult:

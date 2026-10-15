@@ -64,7 +64,7 @@ export function AlertsPanel({ parentId, parentFirstName, onUnauthorized }: Props
   return (
     <div>
       <p className="muted" style={{ marginBottom: 16, maxWidth: "46em" }}>
-        When a message looks like a scam, ScamShield tells the people below straight away, with the evidence and calm words for the phone call. Everything it
+        When a message looks like a scam, ScamShield tells the people below straight away, with the evidence and a few notes for the phone call. Everything it
         sends is also kept on the Checks tab.
       </p>
       {linkError && <p className="notice notice--bad" style={{ marginBottom: 16 }}>{linkError}</p>}

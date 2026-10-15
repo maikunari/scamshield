@@ -25,25 +25,27 @@ export function Landing() {
         <div className="hero">
           <h1>So your parents never face a scammer alone.</h1>
           <p>
-            A parent pastes or shares a suspicious message and gets a clear answer: Scam, Careful or Safe. When it is a scam, the family is told straight away, with the evidence and calm words for the phone call.
+            A parent pastes or shares a suspicious message and gets a clear answer: Scam, Careful or Safe. When it is a scam, the family is told straight away, with the evidence and a few notes for the phone call.
           </p>
         </div>
         <div className="paths">
-          <section className="card path">
-            <h2>For the parent</h2>
-            <p>One big button. Paste or share a message and get a plain answer, read aloud if you like.</p>
-            <a className="fbtn fbtn--primary" href="/check/">
-              Open the check page
-            </a>
-          </section>
-          <section className="card path">
-            <h2>For the family</h2>
-            <p>Recent checks, the alerts that went out, how each was decided, and who she trusts.</p>
-            <a className="fbtn fbtn--quiet" href="/family/">
-              Open the dashboard
-            </a>
-          </section>
-          <section className="card path path--judge" aria-labelledby="judge-h">
+          <div className="paths-pair">
+            <section className="path">
+              <h2>For the parent</h2>
+              <p>One big button. Paste or share a message and get a plain answer, read aloud if you like.</p>
+              <a className="fbtn fbtn--primary" href="/check/">
+                Open the check page
+              </a>
+            </section>
+            <section className="path">
+              <h2>For the family</h2>
+              <p>Recent checks, the alerts that went out, how each was decided, and who she trusts.</p>
+              <a className="fbtn fbtn--quiet" href="/family/">
+                Open the dashboard
+              </a>
+            </section>
+          </div>
+          <section className="path path--judge" aria-labelledby="judge-h">
             <h2 id="judge-h">Judging this?</h2>
             {gate?.demo_load === false ? (
               <p>The demo family is switched off on this deployment.</p>

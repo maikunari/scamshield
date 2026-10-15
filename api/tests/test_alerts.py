@@ -112,7 +112,7 @@ def test_red_alert_goes_to_telegram_and_email(providers):
     assert len(sent) == 1
     msg = sent[0]
     assert msg["parse_mode"] == "HTML"
-    assert "Margaret" in msg["text"] and "Suggested words for the call" in msg["text"]
+    assert "Margaret" in msg["text"] and "Before you call her" in msg["text"]
     assert f"{BASE}/family/?check={result.id}" in msg["text"]
     buttons = msg["reply_markup"]["inline_keyboard"]
     assert buttons[0][0] == {"text": "I called her", "callback_data": f"ack:{outcome.alert_id}"}
@@ -202,7 +202,7 @@ def test_unconfigured_channels_record_the_alert_instead_of_sending(providers):
     assert {d["status"] for d in deliveries.values()} == {"recorded"}
     assert deliveries["email"]["target"] == "david.reed@family.example.com"
     assert deliveries["email"]["payload"]["subject"].startswith("ScamShield:")
-    assert "Suggested words for the call" in deliveries["email"]["payload"]["text"]
+    assert "Before you call her" in deliveries["email"]["payload"]["text"]
     assert deliveries["telegram"]["payload"]["buttons"][0][0]["text"] == "I called her"
 
 
@@ -320,6 +320,20 @@ def test_alert_text_escapes_scammer_controlled_strings_and_drops_non_http_links(
         assert "<script>" not in rendered and "<b>evil</b>" not in rendered
         assert "javascript:" not in rendered
     assert "&lt;script&gt;" in c.email_html
+
+
+def test_alert_lists_the_family_points_not_a_script(profile, pipeline):
+    result = red_result(pipeline)
+    result.verdict.family_points = ["A fake grandson asking for bail.", "Tell her <not> to pay."]
+    c = build_content(result, profile.name, "a1", "tok", BASE)
+    assert "• A fake grandson asking for bail." in c.telegram and "• Tell her &lt;not&gt; to pay." in c.telegram
+    assert "- A fake grandson asking for bail." in c.email_text
+    assert "<li style=\"margin:0 0 6px\">Tell her &lt;not&gt; to pay.</li>" in c.email_html
+    for rendered in (c.telegram, c.email_text, c.email_html):
+        assert "Suggested words" not in rendered and "Hi Mom" not in rendered
+    # An older stored result without notes still gets the generic ones.
+    result.verdict.family_points = []
+    assert "not to reply, click, pay or call back" in build_content(result, profile.name, "a1", "tok", BASE).email_text
 
 
 # --- through the HTTP API ------------------------------------------------------------------------------

@@ -52,15 +52,45 @@ TYPES: list[tuple[str, str, re.Pattern[str]]] = [
 SCAMMY_TYPES = {"police_impersonation", "tech_support", "lottery_prize", "investment_crypto", "romance"}
 INSTITUTIONAL = {"bank", "delivery", "government", "utility", "police", "tech_support"}
 
-FAMILY_SCRIPT = {
-    "family_emergency": "Hi Mom, it's me. I saw the message that says it's from a family member asking for money. It wasn't from us. Please don't send anything. Let's call the real number together.",
-    "parcel_delivery": "Hi Mom, I saw the message about the parcel. Don't click the link or pay anything. Let's check together whether you're actually expecting a delivery.",
-    "bank_phishing": "Hi Mom, I saw the message saying your bank account is locked. The bank doesn't ask you to log in through a text link. Don't tap it, and let's call the bank's number on your card together.",
-    "government_refund": "Hi Mom, I saw the message about a refund. Government offices don't send links like that. Please don't click it. I'll call you and we can check.",
-    "tech_support": "Hi Mom, that warning on the screen is fake. Please don't call the number. Just close the page, and I'll walk you through it on the phone.",
-    "police_impersonation": "Hi Mom, the police won't ask for payment over the phone or by gift cards. Please don't call that number back. I'm going to phone you right now.",
+FAMILY_POINTS = {
+    "family_emergency": [
+        "A text pretending to be a grandchild in trouble, asking for money.",
+        "The number isn't one she knows, and it asks her to keep it secret.",
+        "Tell her not to send money or gift cards.",
+        "Call the grandchild on his usual number to show he's fine.",
+    ],
+    "parcel_delivery": [
+        "A text claiming a parcel couldn't be delivered, with a link to pay a fee.",
+        "Couriers don't charge redelivery fees through text links.",
+        "Tell her not to tap the link or enter card details.",
+    ],
+    "bank_phishing": [
+        "A message claiming her bank account is locked, with a link to log in.",
+        "The bank never asks her to log in through a text or email link.",
+        "Tell her not to tap it; call the number on the back of her card.",
+    ],
+    "government_refund": [
+        "A message offering a government refund through a link.",
+        "Tax and benefit offices don't send refund links by text or email.",
+        "Tell her not to click it or share any details.",
+    ],
+    "tech_support": [
+        "A warning that her computer is infected, with a number to call.",
+        "Real virus warnings never ask you to phone anyone.",
+        "Tell her to close the page and not call the number.",
+    ],
+    "police_impersonation": [
+        "A call claiming to be the police about a warrant, demanding payment.",
+        "Police never take payment over the phone or in gift cards.",
+        "Tell her not to call back or pay anything.",
+        "If she's worried, call the local police on their published number.",
+    ],
 }
-DEFAULT_SCRIPT = "Hi Mom, I saw the message you got. Please don't reply, click, or pay anything yet. Let's look at it together over the phone."
+DEFAULT_POINTS = [
+    "A message from a sender she doesn't know.",
+    "It has the marks of a scam: pressure, a link or a request for money.",
+    "Tell her not to reply, click, pay or call back.",
+]
 
 
 def _approx_tokens(text: str) -> int:
@@ -190,7 +220,7 @@ def heuristic_verdict(ctx: dict) -> dict:
         "score": score,
         "red_flags": flags[:6],
         "safe_action": safe,
-        "family_script": (FAMILY_SCRIPT.get(stype or "", DEFAULT_SCRIPT) if score >= 30 else ""),
+        "family_points": (FAMILY_POINTS.get(stype or "", DEFAULT_POINTS) if score >= 30 else []),
     }
 
 

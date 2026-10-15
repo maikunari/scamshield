@@ -2,7 +2,7 @@
 
 A private scam guard for elderly parents. Built for the Nebius x NVIDIA Global AI Hackathon (Personal AI track).
 
-A parent pastes or forwards a suspicious text, email or voicemail transcript and gets a verdict: 🟢 Safe, 🟡 Careful or 🔴 Scam. The verdict comes with red flags, evidence links, a safe next step and a calm script the family can use when phoning her. ScamShield never explains paperwork: it outputs only the verdict, the red flags, the evidence and the next safe action.
+A parent pastes or forwards a suspicious text, email or voicemail transcript and gets a verdict: 🟢 Safe, 🟡 Careful or 🔴 Scam. The verdict comes with red flags, evidence links, a safe next step and a few short notes the family reads before phoning her (what the message is, the red flag that gives it away, what to tell her). ScamShield never explains paperwork: it outputs only the verdict, the red flags, the evidence and the next safe action.
 
 **Status:** built and live at <https://scamshield.sonicpixel.io>. The core pipeline runs end-to-end behind a FastAPI service with a spend guard and a per-IP rate limit; the parent `/check` PWA (paste, share, three examples, full-screen verdict with read-aloud), family alerts (Telegram and Resend email on 🔴, with the "I called her" acknowledgement), the passphrase-gated family dashboard, privacy controls and the one-click demo family are all working. **Not built:** forward-to-email intake, the nightly job and the weekly digest.
 
@@ -28,7 +28,7 @@ normalize -> verdict cache -> redact PII -> triage (Nano) -> memory check -> evi
 4. **Triage** (`MODEL_FAST`, Nemotron Nano): scam signals (urgency, money ask, impersonation, secrecy, links) and a risk level.
 5. **Memory**: SQLite per-parent profile of trusted contacts and known services. A message from a trusted contact, or from a known service linking only to its own domain, takes the fast path (🟢, no search, no Ultra call). An unknown sender claiming to be family and asking for money or secrecy is floored at 75; any unknown sender asking for money is floored at 50. A sender or link that imitates a known service's domain (`lakeviewbank-online.test` vs `lakeviewbank.example.com`) is floored at 75.
 6. **Evidence** (`MODEL_MID`, Nemotron Super, plans which lookups): up to 3 Tavily searches (plus at most one page extract) per message through the skills `check_phone`, `check_url` and `check_phrase`. Results are cached for 24h. The suspicious URL is never fetched, only searched about. A search hit counts as evidence only if it actually mentions the number or domain.
-7. **Verdict** (`MODEL_REASON`, Nemotron Ultra): score 0–100, label, `red_flags[{text, evidence_url}]`, `safe_action`, `family_script`. A red flag can only cite a URL Tavily returned for this message; anything else is stripped. If nothing was found the verdict says "No public reports found." and invents nothing.
+7. **Verdict** (`MODEL_REASON`, Nemotron Ultra): score 0–100, label, `red_flags[{text, evidence_url}]`, `safe_action`, `family_points` (3-4 short notes for the family, not a script; ScamShield writes them itself if the model gives none). A red flag can only cite a URL Tavily returned for this message; anything else is stripped. If nothing was found the verdict says "No public reports found." and invents nothing.
 8. **Persist** the result with its trace. 🟢 bodies are dropped (hash and label kept) unless the family opts in.
 
 Every step writes a trace entry (model id, prompt/completion tokens, latency, and cost computed from the listed Token Factory prices) stored with the result; the dashboard shows it as "How ScamShield decided".
@@ -99,12 +99,12 @@ There are no third-party assets or trademarks; the icon is an original shield ma
 
 `POST /api/check` takes `{body, sender?, channel?, subject?}` and returns only what the parent screen shows:
 `{label, score, red_flags[{text, evidence_url}], safe_action, evidence_note, contact, family{name}, offline, budget_mode}`.
-The family call script and the trace stay on the family side (`GET /results/{id}`). The endpoint analyses for the
+The family notes and the trace stay on the family side (`GET /results/{id}`). The endpoint analyses for the
 demo parent (`SCAMSHIELD_DEMO_PARENT`, default `margaret`) and loads her seed profile into the database on first use.
 
 ### Family alerts
 
-A 🔴 result from `/api/check` (or `/parents/{id}/analyze`) alerts the parent's family contacts: the trusted contacts whose relationship is `son`, `daughter` or `child`. 🟡 is not alerted (the spec batches it into a digest, a later slice). Each alert carries the verdict, the top three red flags with their evidence links, the suggested call script and a link back to the check, on every channel that contact has:
+A 🔴 result from `/api/check` (or `/parents/{id}/analyze`) alerts the parent's family contacts: the trusted contacts whose relationship is `son`, `daughter` or `child`. 🟡 is not alerted (the spec batches it into a digest, a later slice). Each alert carries the verdict, the top three red flags with their evidence links, the short notes for the call and a link back to the check, on every channel that contact has:
 
 - **Telegram**: `sendMessage` through the Bot API with an inline **I called her** button; the callback reaches `POST /api/telegram/webhook` and marks the alert acknowledged. The webhook is registered with `setWebhook` at startup only when `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` and an `https` `PUBLIC_BASE_URL` are all set.
 - **Email**: Resend (`POST https://api.resend.com/emails`) with HTML and plain text, and an **I called her** link (`/api/alerts/{id}/ack?t=...`). The link opens a confirm button rather than acknowledging on load, so a mail scanner that prefetches links cannot mark an unmade call as made.
@@ -204,7 +204,7 @@ Who sees what:
 
 - **Nebius Token Factory** (the Nemotron models) sees the message text after PII redaction. Card numbers (Luhn-checked), SSNs, Japanese My Numbers and anything that looks like a password or PIN are replaced before any model call; the stored message keeps the original.
 - **Tavily** sees only a phone number, a domain, or a short redacted phrase from the message, never the whole message. Suspicious links are never opened.
-- **Family contacts** get the alert (sender, why it looks like a scam, a call script) over Telegram or Resend, if configured.
+- **Family contacts** get the alert (sender, a few notes for the call, why it looks like a scam) over Telegram or Resend, if configured.
 - Nothing else is contacted.
 
 Controls:

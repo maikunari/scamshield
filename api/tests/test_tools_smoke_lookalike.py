@@ -121,7 +121,7 @@ def fake_token_factory(request: httpx.Request) -> httpx.Response:
     elif task.endswith("plan"):
         data = {"lookups": [{"skill": "check_url", "value": "http://parcelpost-redelivery.example.com/pay"}]}
     else:
-        data = {"score": 95, "red_flags": [{"text": "Asks for a fee", "evidence_url": None}], "safe_action": "Do not pay.", "family_script": "Hi Mom."}
+        data = {"score": 95, "red_flags": [{"text": "Asks for a fee", "evidence_url": None}], "safe_action": "Do not pay.", "family_points": ["A fake fee request."]}
     return httpx.Response(200, json={"model": body["model"], "choices": [{"message": {"content": json.dumps(data)}}],
                                      "usage": {"prompt_tokens": 300, "completion_tokens": 120}})
 

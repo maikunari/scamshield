@@ -26,7 +26,7 @@ function DeliveryRow({ d }: { d: Delivery }) {
       {d.channel === "telegram" ? <SendIcon /> : d.channel === "email" ? <MailIcon /> : <BellIcon />}
       <div>
         <b>{CHANNEL_WORDS[d.channel] ?? d.channel}</b> to {d.contact}{" "}
-        <span className={`chip ${status.tone ? `chip--${status.tone}` : ""}`}>{status.word}</span>
+        <span className={`status small ${status.tone ? `status--${status.tone}` : "muted"}`}>{status.word}</span>
         {d.detail && <div className="small muted">{d.detail}</div>}
       </div>
     </li>
@@ -89,7 +89,7 @@ export function CheckDetail({ parentId, parentFirstName, check, onChanged }: Pro
     }
   }
 
-  async function copyScript(text: string) {
+  async function copyPoints(text: string) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -103,20 +103,27 @@ export function CheckDetail({ parentId, parentFirstName, check, onChanged }: Pro
   const alert = check.alert;
   const sender = prettySender(check.sender);
   const flags = result?.verdict.red_flags ?? [];
-  const script = result?.verdict.family_script?.trim();
+  const points = (result?.verdict.family_points ?? []).map((p) => p.trim()).filter(Boolean);
   const meaning =
     label === "red" ? "Looks like a scam" : label === "yellow" ? "Could be a scam: be careful" : "Looks safe";
 
   return (
     <article aria-label={`${LABEL_WORD[label]} check from ${sender}`}>
       <div className={`dverdict dverdict--${label}`}>
-        <VerdictMark kind={label} />
-        <div>
-          <h2>{LABEL_WORD[label]}</h2>
-          <p>{meaning}</p>
+        <div className="dverdict-top">
+          <div>
+            <p className={`verdict-word verdict-word--${label}`}>
+              <VerdictMark kind={label} />
+              {LABEL_WORD[label]}
+            </p>
+            <h2>{meaning}</h2>
+          </div>
+          <div className="score">
+            <b>{check.score}</b>risk, out of 100
+          </div>
         </div>
-        <div className="score">
-          <b>{check.score}</b>risk, out of 100
+        <div className="riskbar" aria-hidden="true">
+          <span style={{ width: `${Math.max(2, Math.min(100, check.score))}%` }} />
         </div>
       </div>
 
@@ -150,11 +157,29 @@ export function CheckDetail({ parentId, parentFirstName, check, onChanged }: Pro
             ) : null}
           </section>
 
+          {result && points.length > 0 && (
+            <section className="card" aria-labelledby="points-title">
+              <h3 id="points-title">Before you call {parentFirstName}</h3>
+              <ol className="points">
+                {points.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ol>
+              <div style={{ marginTop: 14 }}>
+                <button
+                  type="button"
+                  className="fbtn fbtn--quiet fbtn--small"
+                  onClick={() => copyPoints(points.map((p) => `- ${p}`).join("\n"))}
+                >
+                  <CopyIcon />
+                  {copied ? "Copied" : "Copy notes"}
+                </button>
+              </div>
+            </section>
+          )}
+
           <section className="card" aria-labelledby="alert-title">
-            <h3 id="alert-title">
-              <BellIcon />
-              Family alert
-            </h3>
+            <h3 id="alert-title">Family alert</h3>
             {!alert ? (
               <p className="muted">
                 {label === "red"
@@ -191,12 +216,9 @@ export function CheckDetail({ parentId, parentFirstName, check, onChanged }: Pro
 
           {error && <p className="notice notice--bad">{error}</p>}
 
-          {result && (flags.length > 0 || result.verdict.safe_action || script) && (
+          {result && (flags.length > 0 || result.verdict.safe_action) && (
             <section className="card" aria-labelledby="why-title">
-              <h3 id="why-title">
-                <FlagDot />
-                Why, and what to do
-              </h3>
+              <h3 id="why-title">Why, and what to do</h3>
               {flags.length > 0 && (
                 <ul className="flags" style={{ marginBottom: 14 }}>
                   {flags.map((f, i) => {
@@ -222,20 +244,6 @@ export function CheckDetail({ parentId, parentFirstName, check, onChanged }: Pro
                 <p style={{ marginBottom: 12 }}>
                   <b>Safe next step for {parentFirstName}:</b> {result.verdict.safe_action}
                 </p>
-              )}
-              {script && (
-                <>
-                  <p className="small muted" style={{ marginBottom: 6 }}>
-                    Calm words for your call
-                  </p>
-                  <blockquote className="script">{script}</blockquote>
-                  <div style={{ marginTop: 10 }}>
-                    <button type="button" className="fbtn fbtn--quiet fbtn--small" onClick={() => copyScript(script)}>
-                      <CopyIcon />
-                      {copied ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                </>
               )}
             </section>
           )}

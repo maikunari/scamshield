@@ -97,7 +97,7 @@ class Verdict(BaseModel):
     score: int = Field(ge=0, le=100)
     red_flags: list[RedFlag] = Field(default_factory=list)
     safe_action: str = ""
-    family_script: str = ""
+    family_points: list[str] = Field(default_factory=list)  # 3-4 short notes for the family before they call
     evidence_note: str = ""
     degraded: bool = False  # True when the verdict model failed and rules produced the verdict
 
