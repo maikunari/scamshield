@@ -5,6 +5,7 @@ A private scam guard for elderly parents. Built for the Nebius x NVIDIA Global A
 A parent pastes or forwards a suspicious text, email or voicemail transcript and gets a verdict: 🟢 Safe, 🟡 Careful or 🔴 Scam. The verdict comes with red flags, evidence links, a safe next step and a few short notes the family reads before phoning her (what the message is, the red flag that gives it away, what to tell her). ScamShield never explains paperwork: it outputs only the verdict, the red flags, the evidence and the next safe action.
 
 **Status:** built and live at <https://scamshield.sonicpixel.io>. The core pipeline runs end-to-end behind a FastAPI service with a spend guard and a per-IP rate limit; the parent `/check` PWA (paste, share, three examples, full-screen verdict with read-aloud), family alerts (Telegram and Resend email on 🔴, with the "I called her" acknowledgement), the passphrase-gated family dashboard, privacy controls and the one-click demo family are all working. **Not built:** forward-to-email intake, the nightly job and the weekly digest.
+n**Demo video:** https://youtu.be/CbP4Uv6cMYg
 
 **Where it runs.** The app (the FastAPI API and the static PWA from one app) is hosted on a DigitalOcean droplet. It is not hosted on Nebius; only inference is: every Nemotron call goes to the Nebius Token Factory API. The reason is cost, see [docs/feedback.md](docs/feedback.md) item 4.
 
