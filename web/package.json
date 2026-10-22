@@ -12,7 +12,7 @@
     "serve": "npx --yes serve out"
   },
   "dependencies": {
-    "next": "16.4.0",
+    "next": "16.4.1",
     "qrcode-generator": "2.0.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
